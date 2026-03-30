@@ -1,0 +1,95 @@
+<head>
+</head>
+<body >
+<fontsize="14.4">
+<div style="margin-left: 20px">
+<h4> Data Details</h4>
+<p>This dashboard displays hydrographs and water level statistics produced from hourly water level data collected by staff with Acadia National Park (ACAD) and the <a
+href="https://www.nps.gov/im/netn/freshwater-wetlands.htm">Northeast Temperate
+Network (NETN) Inventory and Monitoring Program</a> at permanent well monitoring sites during the growing season (May 14th to October 1st). For more details on data collection methodology, see <a
+href="https://irma.nps.gov/DataStore/Reference/Profile/2286693">Miller et al. 2021</a> and <a
+href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 2016</a>.   </p>
+
+<p><strong>Monitoring Sites Map</strong></p>
+<iframe
+  title="Monitoring Sites Map"
+  src="https://schoodic.maps.arcgis.com/apps/mapviewer/index.html?configurableview=true&webmap=33d10bcf8d0844a3bb057fb142509b56&theme=light&legend=true&center=-68.23812333744715,44.363635527870244&scale=36111.909643"
+  width="100%"
+  height="450"
+  style="border:0; margin-bottom: 1px;"
+  allow="local-network-access; geolocation">
+</iframe>
+
+<p style="text-align: center;">
+  <em>Interactive map of water-level monitoring sites in Great Meadow and Gilmore Meadow. 
+  Click a site to view a pop-up with additional site information.</em>
+</p>
+
+<p><strong>Hydrographs</strong></p>
+<ul>
+  <li>The brown horizontal line at 0 cm represents ground/surface level. The blue line represents hourly precipitation in cm. Selecting a site in the hydrograph controls will produce a colored line representing hourly water levels recorded at that site.</li>
+  <li>When selecting multiple sites for the same year, the water level data for each site will appear overlaid on the same graph as different colored lines. When selecting multiple years for the same site, graphs for each year will stack on top of each other.</li>
+  <li>Data can be selected using the brush tool (+) by clicking and dragging with your cursor to highlight the section of the hydrograph you wish to see the detailed data for. Once highlighted on the hydrograph, the corresponding data table will appear in the “Selected Data from Hydrograph” section.</li>
+  <li>Selected hydrographs can be downloaded as png images. Selected hydrology data from the hydrographs can be downloaded as csv datasets.</li>
+</ul>
+
+<p><strong>Growing Season Water Level Statistics</strong></p>
+<ul>
+  <li>Stats can be summarized for each year or averaged across years.</li>
+  <li>Stats can also be averaged across all years and sites per wetland for easy entire wetland comparisons. If more than three years of data are selected, statistical significance will be calculated comparing averages between wetlands.</li>
+<li>Stat definitions:
+  <ul>
+    <li>
+      <span style="text-decoration: underline;">Mean Water Level (cm)</span>:
+      average water level in cm during the growing season.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">SD Water Level (cm)</span>:
+      standard deviation in cm.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Minimum Water Level (cm)</span>:
+      minimum water level in cm during the growing season.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Maximum hourly increase (cm)</span>:
+      maximum water level in cm during the growing season.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Maximum hourly decrease (cm)</span>:
+      maximum increase in water level within an hour during the growing season.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Growing Season Change (cm)</span>:
+      change in growing season water level in cm by comparing the average water levels for June and September.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">*GS % surface water</span>:
+      the percent of the growing season that water level was above the surface.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">*GS % within 30cm</span>:
+      the percent of the growing season that water level was within 30 cm of the surface.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">*GS % over 30cm deep</span>:
+      percent of the growing season that water level was below 30 cm of the surface.
+    </li>
+  </ul>
+</li>
+</ul>
+
+<p><em>*These stats represent thresholds that drive vegetation patterns in wetlands: prolonged surface water often selects for emergent vegetation and when soils remain saturated within the top 30 cm, wetland plant species are favored over upland species. Please see <a href="https://irma.nps.gov/DataStore/Reference/Profile/2239739">Miller and Weed 2017</a> for further details. </em></p>
+
+<h4>Citations </h4>
+<p style='margin-left:.25in;text-indent:-.25in'>Miller K (2025). wetlandACAD: Package for compiling, querying, summarizing and plotting freshwater wetland data in Acadia NP. R package version 0.1.5. https://github.com/katemmiller/wetlandACAD.</p>
+
+<p style='margin-left:.25in;text-indent:-.25in'>Miller KM, Mitchell BR, Weed AS. 2021. Northeast Temperate Network permanent freshwater wetland monitoring protocol for Acadia National Park: 2020 revision. Natural Resource Report. NPS/NETN/NRR—2021/2276. National Park Service. Fort Collins, Colorado. https://doi.org/10.36967/nrr-2286693 </p>
+
+<p style='margin-left:.25in;text-indent:-.25in'>Miller KM and Weed AS. 2017. Freshwater wetland monitoring in Acadia National Park: Northeast Temperate Network 2011-2016 summary report. Natural Resource Report. NPS/NETN/NRR—2017/1418. National Park Service. Fort Collins, Colorado https://irma.nps.gov/DataStore/Reference/Profile/2239739</p>
+
+<p style='margin-left:.25in;text-indent:-.25in'>Mittelhauser G. 2016. National wetland condition assessment great meadow, Mount Desert Island, Maine 2015 https://irma.nps.gov/DataStore/Reference/Profile/2230775</p>
+
+</div>
+
+</body>
