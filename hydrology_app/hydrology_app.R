@@ -37,7 +37,7 @@ gm <- read.csv("data/great_meadow_well_data_2025_20260304.csv") %>%
 gl <- read.csv("data/gl_well_data_2025_20260127.csv") %>%
   mutate(date = as.Date(date),
          timestamp = as_datetime(timestamp),
-         site = "Gilmore Meadow")
+         site = "Gilmore Meadow 1")
 
 # Create precipitation lookup and combine datasets
 gm_precip_lookup <- gm %>% select(timestamp, precip.cm, lag.precip) %>% distinct()
@@ -59,7 +59,7 @@ all_data <- bind_rows(gm, gl_with_gm_precip) %>%
 
 # Water level stats
 wl_stats <- read.csv("data/gm_gl_wl_stats_2025_20260304.csv") %>% 
-  select(year, stat, `Gilmore Meadow` = gilmore.meadow, 
+  select(year, stat, `Gilmore Meadow 1` = gilmore.meadow, 
          `Great Meadow 1` = great.meadow.1, `Great Meadow 2` = great.meadow.2, 
          `Great Meadow 3` = great.meadow.3, `Great Meadow 4` = great.meadow.4, 
          `Great Meadow 5` = great.meadow.5, `Great Meadow 6` = great.meadow.6) %>% 
@@ -74,9 +74,10 @@ wl_stats <- read.csv("data/gm_gl_wl_stats_2025_20260304.csv") %>%
 
 # Site color palette (defined once)
 SITE_COLORS <- c(
-  "Great Meadow 1" = "black", "Great Meadow 2" = "chartreuse4", "Great Meadow 3" = "green",
+  "Great Meadow 1" = "#000066", "Great Meadow 2" = "darkgreen", "Great Meadow 3" = "green",
   "Great Meadow 4" = "darkorange", "Great Meadow 5" = "deeppink2", "Great Meadow 6" = "purple",
-  "Gilmore Meadow" = "darkgray", "Precipitation" = "blue"
+  "Gilmore Meadow 1" = "chocolate4",   "Great Meadow (Average)" = "black",
+  "Gilmore Meadow (Average)" = "darkgray", "Precipitation" = "blue"
 )
 
 # Variable name mapping for significance testing
@@ -150,7 +151,7 @@ calculate_wetland_significance <- function(data, selected_years, selected_sites,
   
   filtered_data <- data %>%
     filter(year %in% selected_years, site %in% selected_sites) %>%
-    mutate(site_group = if_else(grepl("Great Meadow", site), "Great Meadow", site))
+    mutate(site_group = if_else(grepl("Great Meadow", site), "Great Meadow", "Gilmore Meadow"))
   
   wetlands_present <- unique(filtered_data$site_group)
   if (length(wetlands_present) < 2 || !all(c("Great Meadow", "Gilmore Meadow") %in% wetlands_present)) {
@@ -177,7 +178,7 @@ calculate_wetland_significance <- function(data, selected_years, selected_sites,
 # picker tool function
 create_picker_input <- function(id, label, choices, selected, multiple = TRUE, none_text = "Choose options") {
   pickerInput(id, label = div(icon(if(id %in% c("selected_sites", "stats_site")) "map-marker" else "calendar"), label),
-              choices = sort(choices), selected = selected, multiple = multiple,
+              choices = choices, selected = selected, multiple = multiple,
               options = c(PICKER_OPTIONS, list(`none-selected-text` = none_text)))
 }
 
@@ -240,9 +241,18 @@ ui <- page_fluid(
           class = "sidebar-custom", width = 300,
           h4("Hydrograph Controls", style = "color: #1B365D; margin-bottom: 20px;"),
           
-          create_picker_input("selected_sites", "Select Site(s):", 
-                              unique(all_data$site), "Great Meadow 1", 
-                              none_text = "Choose site(s)"),
+          create_picker_input(
+            "selected_sites", "Select Site(s):", 
+            list(
+              "Individual Sites" = sort(unique(all_data$site)),
+              "Wetland Averages" = c(
+                "Gilmore Meadow (Average)",
+                "Great Meadow (Average)"
+              )
+            ),
+            "Great Meadow 1",
+            none_text = "Choose site(s)"
+          ),
           
           create_picker_input("year", "Select Year(s):", 
                               unique(all_data$year), 
@@ -294,7 +304,7 @@ ui <- page_fluid(
           
           create_picker_input("stats_site", "Select Site(s):", 
                               unique(wl_stats$site), 
-                              c("Great Meadow 1", "Gilmore Meadow"),
+                              c("Great Meadow 1", "Gilmore Meadow 1"),
                               none_text = "Choose site(s)"),
           
           create_picker_input("stats_year", "Select Years:", 
@@ -354,8 +364,41 @@ server <- function(input, output, session) {
   # Reactive data for plotting
   plot_data <- reactive({
     req(input$year, input$selected_sites)
-    all_data %>%
-      filter(year %in% input$year, doy > 134, doy < 275, site %in% input$selected_sites)
+    
+    data <- all_data %>%
+      filter(year %in% input$year, doy > 134, doy < 275)
+    
+    selected <- input$selected_sites
+    
+    # ---- Separate selections ----
+    real_sites <- selected[selected %in% unique(all_data$site)]
+    avg_sites  <- selected[grepl("\\(Average\\)", selected)]
+    
+    # ---- Real site data ----
+    real_data <- data %>%
+      filter(site %in% real_sites)
+    
+    # ---- Average data ----
+    avg_data <- map_dfr(avg_sites, function(avg_name) {
+      
+      wetland_name <- if (grepl("Great Meadow", avg_name)) {
+        "Great Meadow"
+      } else {
+        "Gilmore Meadow"
+      }
+      
+      data %>%
+        filter(grepl(wetland_name, site)) %>%
+        group_by(year, doy_h, timestamp) %>%
+        summarise(
+          water_depth = mean(water_depth, na.rm = TRUE),
+          lag_precip = mean(lag_precip, na.rm = TRUE),
+          .groups = "drop"
+        ) %>%
+        mutate(site = avg_name)
+    })
+    
+    bind_rows(real_data, avg_data)
   })
   
   # Render hydrograph plot
