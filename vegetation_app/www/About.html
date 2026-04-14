@@ -1,0 +1,93 @@
+<head>
+</head>
+<body >
+<fontsize="14.4">
+<div style="margin-left: 20px">
+<h4> Data Details</h4>
+<p>This dashboard displays Vegetation Multimetric Index (VMMI) statistics and species lists summarized from data collected by staff with Acadia National Park (ACAD) and the <a
+href="https://www.nps.gov/im/netn/freshwater-wetlands.htm">Northeast Temperate
+Network (NETN) Inventory and Monitoring Program</a> at permanent vegetation monitoring sites. Vegetation is sampled using methods developed by NETN and the Environmental Protection Agency. For more details on data collection methodology, see <a
+href="https://irma.nps.gov/DataStore/Reference/Profile/2286693">Miller et al. 2021</a> and <a
+href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 2016</a>.   </p>
+
+<p><strong>Monitoring Sites Map</strong></p>
+<iframe
+  title="Monitoring Sites Map"
+  src="https://schoodic.maps.arcgis.com/apps/mapviewer/index.html?configurableview=true&webmap=33d10bcf8d0844a3bb057fb142509b56&theme=light&legend=true&center=-68.23812333744715,44.363635527870244&scale=36111.909643"
+  width="100%"
+  height="450"
+  style="border:0; margin-bottom: 1px;"
+  allow="local-network-access; geolocation">
+</iframe>
+
+<p style="text-align: center;">
+  <em>Interactive map of vegetation monitoring sites in Great Meadow and Gilmore Meadow. 
+  Click a site to view a pop-up with additional site information.</em>
+</p>
+
+<p><strong>Vegetation Multimetric Index (VMMI) statistics</strong></p>
+
+  <p>VMMI is a metric developed to assess the ecological health of vegetation and freshwater wetland conditions across the northeastern United States. The following four factors are used to calculate VMMI:</p>
+  <ul>
+  <li>
+    Mean coefficient of conservatism (mean COC) of all species
+    <ul>
+      <li>
+        Coefficients of Conservatism (COC) are rating values given to plant species based on their tolerance to habitat disturbance and their association with ecologically intact natural areas. The scale ranges from 0 (non-native or species strongly associated with disturbed areas) to 10 (native species or species strongly associated with ecologically intact natural areas).
+      </li>
+    </ul>
+  </li>
+  <li>Percent cover of invasive plant species
+      <ul>
+      <li>
+        Invasive plants are non-native introduced plant species that harm their new environment. 
+      </li>
+    </ul>
+  </li>
+  <li>Percent cover of bryophytes 
+      <ul>
+      <li>
+        Bryophytes are non-vascular plants such as mosses, liverworts, and hornworts that help with water retention, nutrient cycling, soil formation, erosion prevention, plant growth, and habitat creation for invertebrates and other animals.
+      </li>
+    </ul>
+  </li>
+  <li>Percent cover of stress tolerant native plant species 
+      <ul>
+      <li>
+        Stress tolerant native plant species are native plants that are adapted to challenging or disturbed environmental conditions.  
+      </li>
+    </ul>
+  </li>
+</ul>
+<p>VMMI values calculated from these factors range from 0 to 100 and are used to classify conditions at sites with a rating of Poor (VMMI < 41.48), Fair (VMMI between 41.48 and 60.95), or Good (VMMI > 60.95). Rating thresholds were derived from distributions in reference sites known to be minimally degraded.</p>
+
+<p><span style="text-decoration: underline;">Table controls:</span></p>
+
+<p>The values presented in the VMMI table in this dashboard can be summarized by site for each year of data collection or averaged across all years of data collection. Available years for selection update dynamically based on the selected site(s), as sampling years vary among some of the monitoring sites.</p>
+
+
+<p><strong>Growing Season Water Level Statistics</strong></p>
+
+<p>The species list table provides all of the species recorded at a given site across all years of data collection. Species names follow <a
+href="https://itis.gov/">ITIS.gov</a> nomenclature. The invasive column indicates if the species is invasive as “true” and is not invasive as “false”.</p>
+
+<p>Please note that protected species have been removed from the data displayed in the species list table. Protected species data are available upon request and approval by NETN and ACAD staff to distribute.</p>
+
+<p><span style="text-decoration: underline;">Table controls:</span></p>
+
+<p>Species lists can be summarized by site and year. Species names can be searched using the search bar in the panel controls. The species lists can be filtered to only show invasive species by selecting “Show invasives only”.</p>
+
+
+
+<h4>Citations </h4>
+<p style='margin-left:.25in;text-indent:-.25in'>Miller K (2025). wetlandACAD: Package for compiling, querying, summarizing and plotting freshwater wetland data in Acadia NP. R package version 0.1.5. https://github.com/katemmiller/wetlandACAD.</p>
+
+<p style='margin-left:.25in;text-indent:-.25in'>Miller KM, Mitchell BR, Weed AS. 2021. Northeast Temperate Network permanent freshwater wetland monitoring protocol for Acadia National Park: 2020 revision. Natural Resource Report. NPS/NETN/NRR—2021/2276. National Park Service. Fort Collins, Colorado. https://doi.org/10.36967/nrr-2286693 </p>
+
+<p style='margin-left:.25in;text-indent:-.25in'>Miller KM and Weed AS. 2017. Freshwater wetland monitoring in Acadia National Park: Northeast Temperate Network 2011-2016 summary report. Natural Resource Report. NPS/NETN/NRR—2017/1418. National Park Service. Fort Collins, Colorado https://irma.nps.gov/DataStore/Reference/Profile/2239739</p>
+
+<p style='margin-left:.25in;text-indent:-.25in'>Mittelhauser G. 2016. National wetland condition assessment great meadow, Mount Desert Island, Maine 2015 https://irma.nps.gov/DataStore/Reference/Profile/2230775</p>
+
+</div>
+
+</body>
