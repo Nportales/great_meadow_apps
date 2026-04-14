@@ -17,9 +17,30 @@ library(bslib)
 # For data exploration, app building, or debugging, temporarily set working directory to app folder
 # setwd("vegetation_app")
 
+# vmmi
 vmmi_data <- read.csv("data/vis_FOA_NETN_VMMI_2011_2025_20260324.csv")
-species_data <- read.csv("data/vis_FOA_NETN_spplist_2011_2025_20260324.csv")
 
+# species lists
+species_data <- read.csv("data/vis_FOA_NETN_spplist_2011_2025_20260324.csv") %>%
+  filter(!str_detect(latin.name, regex("unknown", ignore_case = TRUE)))
+
+# monitoring sites
+monitoring_sites <- read.csv("data/monitoring_sites.csv")
+
+# Create lookup: labels = display names, values = site codes
+site_lookup <- monitoring_sites %>%
+  filter(site.name %in% vmmi_data$site.name) %>%
+  distinct(site.name, display.site.name) %>%
+  mutate(
+    wetland_priority = case_when(
+      grepl("Great Meadow", display.site.name) ~ 1,
+      grepl("Gilmore Meadow", display.site.name) ~ 2,
+      TRUE ~ 3
+    ),
+    site_num = readr::parse_number(display.site.name)
+  ) %>%
+  arrange(wetland_priority, site_num) %>%
+  { setNames(.$site.name, .$display.site.name) }
 
 #-----------------------#
 ####    Constants    ####
@@ -42,7 +63,7 @@ create_picker_input <- function(id, label, choices, selected,
   pickerInput(
     id,
     label = div(icon("leaf"), label),
-    choices = sort(unique(choices)),
+    choices = choices,
     selected = selected,
     multiple = multiple,
     options = c(PICKER_OPTIONS, list(`none-selected-text` = none_text))
@@ -64,7 +85,7 @@ ui <- page_fluid(
   tags$head(
     tags$style(HTML("
       .content-section {
-        margin: 30px 0; padding: 25px; border-radius: 15px;
+        margin: 20px 0; padding: 25px; border-radius: 15px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
         border: 2px solid #1B365D;
@@ -83,8 +104,10 @@ ui <- page_fluid(
     "))
   ),
   
+  #Main title
   div(class = "main-title",
-      h1("Wetland Vegetation Dashboard")
+      h1("Wetland Vegetation Dashboard",
+         style = "margin: 0; font-size: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3)")
   ),
   
   #--------------------------------#
@@ -100,12 +123,16 @@ ui <- page_fluid(
           h4("VMMI Controls", style = "color: #2E7D32;"),
           
           create_picker_input("vmmi_site", "Select Site(s):",
-                              vmmi_data$site.name,
-                              selected = unique(vmmi_data$site.name)[1]),
+                              choices = site_lookup,
+                              selected = site_lookup[1]),
           
-          create_picker_input("vmmi_year", "Select Years:",
-                              vmmi_data$year,
-                              selected = tail(sort(unique(vmmi_data$year)), 4)),
+          create_picker_input("vmmi_year", "Select Year(s):",
+                              choices = sort(unique(vmmi_data$year)),
+                              selected = NULL),
+          tags$small(
+            style = "color: #6c757d; display: block; margin-top: -8px; margin-bottom: 10px; font-style: italic;",
+            "*Note: Year options update based on selected site(s)."
+          ),
           
           radioButtons("vmmi_summary", "Summarize By:",
                        choices = c("Each Year" = "year",
@@ -137,14 +164,14 @@ ui <- page_fluid(
           h4("Species Controls", style = "color: #2E7D32;"),
           
           create_picker_input("sp_site", "Select Site(s):",
-                              species_data$site.name,
-                              selected = unique(species_data$site.name)[1]),
+                              choices = site_lookup,
+                              selected = site_lookup[1]),
           
-          create_picker_input("sp_year", "Select Years:",
-                              species_data$year,
+          create_picker_input("sp_year", "Select Year(s):",
+                              choices = sort(unique(species_data$year)),
                               selected = unique(species_data$year)),
           
-          checkboxInput("sp_invasive", "Show invasive only", FALSE),
+          checkboxInput("sp_invasive", "Show invasives only", FALSE),
           
           textInput("species_search", "Search species (name):", ""),
           
@@ -157,10 +184,18 @@ ui <- page_fluid(
         card(
           full_screen = TRUE,
           card_header(class = "bg-primary text-white",
-                      "Species List Explorer"),
+                      "Species Lists"),
           div(style = "padding: 10px;",
               dataTableOutput("species_table"))
         )
+      )
+  ),
+  # About section
+  div(id = "about",
+      class = "brush-info-section",
+      card(
+        card_header(class = "bg-primary text-white", "About"),
+        includeHTML("./www/About.html")
       )
   )
 )
@@ -175,25 +210,44 @@ server <- function(input, output, session) {
   ####    VMMI Processing   ####
   #-----------------------------#
   
+  # first make year choices reactive to selected site(s)
+  observeEvent(input$vmmi_site, {
+    
+    available_years <- vmmi_data %>%
+      filter(site.name %in% input$vmmi_site) %>%
+      pull(year) %>%
+      unique() %>%
+      sort()
+    
+    updatePickerInput(
+      session,
+      "vmmi_year",
+      choices = available_years,
+      selected = available_years
+    )
+  }, ignoreNULL = FALSE)
+  
+  # processing
   vmmi_filtered <- reactive({
-    req(input$site, input$year)
+    req(input$vmmi_site, input$vmmi_year)
     
     vmmi_data %>%
-      filter(site.name %in% input$site,
-             year %in% input$year)
+      filter(site.name %in% input$vmmi_site,
+             year %in% input$vmmi_year)
   })
   
   vmmi_summary <- reactive({
     
-    df <- vmmi_filtered()
+    df <- vmmi_filtered() %>%
+      left_join(monitoring_sites, by = "site.name")
     
-    switch(input$summary_type,
+    switch(input$vmmi_summary,
            
            "year" = {
              df %>%
                mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
                select(
-                 Site = site.name,
+                 Site = display.site.name,
                  Year = year,
                  `Mean COC` = mean.coc,
                  `Invasive Cover` = inv.cov,
@@ -208,14 +262,26 @@ server <- function(input, output, session) {
              df %>%
                group_by(site.name) %>%
                summarise(
+                 Site = first(display.site.name),
                  Year = paste0(min(year), "–", max(year)),
                  across(c(mean.coc, inv.cov, bryo.cov, strtol.cov, vmmi),
                         ~ round(mean(.x, na.rm = TRUE), 2)),
-                 vmmi.rating = names(sort(table(vmmi.rating), decreasing = TRUE))[1],
+                 
+                 # store mean VMMI separately (for rating) in temp column
+                 vmmi_mean = mean(vmmi, na.rm = TRUE),
+                 
+                 # assign rating based on averaged VMMI
+                 vmmi.rating = case_when(
+                   vmmi_mean > 60.94853 ~ "Good",
+                   vmmi_mean < 41.48136 ~ "Poor",
+                   TRUE ~ "Fair"
+                 ),
                  .groups = "drop"
                ) %>%
+               # now remove temp column
+               select(-site.name, -vmmi_mean) %>%
+               
                rename(
-                 Site = site.name,
                  `Mean COC` = mean.coc,
                  `Invasive Cover` = inv.cov,
                  `Bryophyte Cover` = bryo.cov,
@@ -237,7 +303,7 @@ server <- function(input, output, session) {
              year %in% input$sp_year)
     
     if (input$sp_invasive) {
-      df <- df %>% filter(invasive == "Yes")
+      df <- df %>% filter(invasive == "true")
     }
     
     if (input$species_search != "") {
@@ -253,11 +319,17 @@ server <- function(input, output, session) {
   
   species_summary <- reactive({
     species_filtered() %>%
+      left_join(monitoring_sites, by = "site.name") %>%
       group_by(latin.name, common.name, invasive) %>%
       summarise(
+        `Latin Name` = first(latin.name),
+        `Common Name` = first(common.name),
+        Invasive = first(invasive),
         `Years Found` = paste(sort(unique(year)), collapse = ", "),
+        `Site(s)` = paste(unique(display.site.name), collapse = ", "),
         .groups = "drop"
-      )
+      ) %>%
+      select(`Latin Name`, `Common Name`, Invasive, `Years Found`, `Site(s)`)
   })
   
   #-----------------------------#
@@ -266,13 +338,13 @@ server <- function(input, output, session) {
   
   output$vmmi_table <- renderDataTable({
     datatable(vmmi_summary(),
-              options = list(pageLength = 10, scrollX = TRUE))
+              rownames = FALSE, options = list(pageLength = 25, scrollX = TRUE, dom = "tip"))
   })
   
   output$species_table <- renderDataTable({
-    datatable(species_summary(),
-              filter = "top",
-              options = list(pageLength = 25, scrollX = TRUE))
+    datatable(
+      species_summary(),
+      rownames = FALSE, options = list(pageLength = 25, scrollX = TRUE, dom = "tip"))
   })
   
   #-----------------------------#
