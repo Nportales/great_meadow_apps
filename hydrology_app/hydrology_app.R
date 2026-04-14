@@ -163,7 +163,7 @@ calculate_wetland_significance <- function(data, selected_years, selected_sites,
   
   yearly_means <- filtered_data %>%
     group_by(year, site_group) %>%
-    summarise(across(all_of(stat_cols), mean, na.rm = TRUE), .groups = "drop")
+    summarise(across(all_of(stat_cols), \(x) mean(x, na.rm = TRUE)), .groups = "drop")
   
   map_dfr(stat_cols, function(var) {
     tryCatch({
