@@ -62,7 +62,7 @@ create_picker_input <- function(id, label, choices, selected,
                                 multiple = TRUE, none_text = "Choose options") {
   pickerInput(
     id,
-    label = div(icon("leaf"), label),
+    label = div(icon(if(id %in% c("vmmi_site", "sp_site")) "map-marker" else "calendar"), label),
     choices = choices,
     selected = selected,
     multiple = multiple,
@@ -142,7 +142,12 @@ ui <- page_fluid(
           br(),
           
           downloadButton("download_vmmi", "Download VMMI Table",
-                         class = "btn-primary btn-sm")
+                         class = "btn-primary btn-sm"),
+          
+          div(style = "margin-top: 15px; text-align: center;",
+              tags$a(href = "#about",
+                     class = "btn btn-primary btn-sm", icon("info-circle"),
+                     "About")),
         ),
         
         card(
@@ -169,7 +174,12 @@ ui <- page_fluid(
           
           create_picker_input("sp_year", "Select Year(s):",
                               choices = sort(unique(species_data$year)),
-                              selected = unique(species_data$year)),
+                              selected = NULL),
+          
+          tags$small(
+            style = "color: #6c757d; display: block; margin-top: -8px; margin-bottom: 10px; font-style: italic;",
+            "*Note: Year options update based on selected site(s)."
+          ),
           
           checkboxInput("sp_invasive", "Show invasives only", FALSE),
           
@@ -178,7 +188,12 @@ ui <- page_fluid(
           br(),
           
           downloadButton("download_species", "Download Species Table",
-                         class = "btn-primary btn-sm")
+                         class = "btn-primary btn-sm"),
+          
+          div(style = "margin-top: 15px; text-align: center;",
+              tags$a(href = "#about",
+                     class = "btn btn-primary btn-sm", icon("info-circle"),
+                     "About")),
         ),
         
         card(
@@ -255,7 +270,11 @@ server <- function(input, output, session) {
                  `Stress Tolerance Cover` = strtol.cov,
                  VMMI = vmmi,
                  `VMMI Rating` = vmmi.rating
-               )
+               ) %>%
+               mutate(
+                 Site = factor(Site, levels = names(site_lookup))
+               ) %>%
+               arrange(Site, Year)
            },
            
            "multi" = {
@@ -288,7 +307,11 @@ server <- function(input, output, session) {
                  `Stress Tolerance Cover` = strtol.cov,
                  VMMI = vmmi,
                  `VMMI Rating` = vmmi.rating
-               )
+               ) %>%
+               mutate(
+                 Site = factor(Site, levels = names(site_lookup))
+               ) %>%
+               arrange(Site)
            }
     )
   })
@@ -297,6 +320,24 @@ server <- function(input, output, session) {
   ####   Species Processing ####
   #-----------------------------#
   
+  # first make species year choices reactive to selected site(s)
+  observeEvent(input$sp_site, {
+    
+    available_years <- species_data %>%
+      filter(site.name %in% input$sp_site) %>%
+      pull(year) %>%
+      unique() %>%
+      sort()
+    
+    updatePickerInput(
+      session,
+      "sp_year",
+      choices = available_years,
+      selected = available_years
+    )
+  }, ignoreNULL = FALSE)
+  
+  # processing 
   species_filtered <- reactive({
     df <- species_data %>%
       filter(site.name %in% input$sp_site,
