@@ -22,7 +22,7 @@ vmmi_data <- read.csv("data/vis_FOA_NETN_VMMI_2011_2025_20260324.csv")
 
 # species lists
 species_data <- read.csv("data/vis_FOA_NETN_spplist_2011_2025_20260324.csv") %>%
-  filter(!str_detect(latin.name, regex("unknown", ignore_case = TRUE)))
+  filter(!str_detect(latin.name, regex("unknown", ignore_case = TRUE))) 
 
 # monitoring sites
 monitoring_sites <- read.csv("data/monitoring_sites.csv")
@@ -344,7 +344,7 @@ server <- function(input, output, session) {
              year %in% input$sp_year)
     
     if (input$sp_invasive) {
-      df <- df %>% filter(invasive == "true")
+      df <- df %>% filter(invasive == "TRUE")
     }
     
     if (input$species_search != "") {
