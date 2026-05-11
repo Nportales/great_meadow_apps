@@ -33,10 +33,9 @@ href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 201
   <li>Selected hydrographs can be downloaded as png images. Selected hydrology data from the hydrographs can be downloaded as csv datasets.</li>
 </ul>
 
-<p><strong>Growing Season Water Level Statistics</strong></p>
+<p><strong>Water Level Statistics</strong></p>
 <ul>
-  <li>Stats can be summarized for each year or averaged across years.</li>
-  <li>Stats can also be averaged across all years and sites per wetland for easy entire wetland comparisons. If more than three years of data are selected, statistical significance will be calculated comparing averages between wetlands.</li>
+  <li>Statistics are calculated from water levels recorded during the growing season (May through October).</li>
 <li>Stat definitions:
   <ul>
     <li>
@@ -84,6 +83,39 @@ href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 201
 </ul>
 
 <p><em>*These stats represent thresholds that drive vegetation patterns in wetlands: prolonged surface water often selects for emergent vegetation and when soils remain saturated within the top 30 cm, wetland plant species are favored over upland species. Please see <a href="https://irma.nps.gov/DataStore/Reference/Profile/2239739">Miller and Weed 2017</a> for further details. </em></p>
+
+<p><span style="text-decoration: underline;">Tables:</span></p>
+<ul>
+<li>Tables show water level stats and can be summarized in four different ways:
+  <ul>
+    <li>
+      <span style="text-decoration: underline;">Site per Year</span>:
+      Each site shown for each year individually
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Site Averaged Across Years</span>:
+      Each site averaged across all selected years.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Wetland per Year</span>:
+      Each wetland shown for each year (averaged across all sites selected within each wetland).
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Wetland Averaged Across Years</span>:
+      Each wetland averaged across all years  (averaged across all sites selected within each wetland). If four or more years of data are selected, statistical significance will be calculated comparing averages between wetlands. Statistically significant stats are highlighted in yellow and the associated p-value is provided.  
+    </li>
+  </ul>
+<li>Tables can be downloaded as csv datasets.
+</li>
+</ul>
+
+<p><span style="text-decoration: underline;">Time Series Plots:</span></p>
+<ul>
+  <li>Plots show the yearly averages of each statistic across all sites within each wetland over time. Dashed lines represent the grand mean for each wetland (average across all years).</li>
+  <li>Each stat displays individually with data from both wetlands shown for comparison. Statistically significant stats are highlighted in yellow. P-values are always provided.</li>
+  <li>Plots can be downloaded as png images.</li>
+</ul>
+
 
 <h4>Citations </h4>
 <p style='margin-left:.25in;text-indent:-.25in'>Miller K (2025). wetlandACAD: Package for compiling, querying, summarizing and plotting freshwater wetland data in Acadia NP. R package version 0.1.5. https://github.com/katemmiller/wetlandACAD.</p>

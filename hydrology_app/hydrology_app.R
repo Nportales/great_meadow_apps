@@ -11,6 +11,7 @@ library(patchwork)
 library(shinyWidgets)
 library(DT)
 library(bslib)
+library(ggtext)
 
 #-------------------------------------------#
 ####    Read & Prepare Processed Data    ####
@@ -67,6 +68,35 @@ wl_stats <- read.csv("data/gm_gl_wl_stats_2025_20260304.csv") %>%
   pivot_wider(names_from = stat, values_from = value) %>%
   arrange(site, year) %>% 
   mutate(wetland = if_else(grepl("Great Meadow", site), "Great Meadow", "Gilmore Meadow"))
+
+# Prepare aggregated data for time series plots
+wl_test <- wl_stats %>%
+  group_by(wetland, year) %>%
+  summarise(
+    across(
+      c(WL_mean, WL_sd, WL_min, WL_max, max_inc, max_dec, GS_change,
+        prop_over_0cm, prop_bet_0_neg30cm, prop_under_neg30cm),
+      list(avg = ~mean(.x, na.rm = TRUE),
+           sd  = ~sd(.x, na.rm = TRUE)),
+      .names = "{.col}_{.fn}"
+    ),
+    
+    n_sites = n_distinct(site),
+    .groups = "drop"
+  )
+
+# Compute grand means
+grand_means <- wl_test %>%
+  group_by(wetland) %>%
+  summarise(
+    across(
+      ends_with("_avg"),
+      ~ mean(.x, na.rm = TRUE),
+      .names = "{.col}_grand"
+    ),
+    .groups = "drop"
+  )
+
 
 #-----------------------#
 ####    Constants    ####
@@ -167,7 +197,13 @@ calculate_wetland_significance <- function(data, selected_years, selected_sites,
   
   map_dfr(stat_cols, function(var) {
     tryCatch({
-      test <- t.test(as.formula(paste(var, "~ site_group")), data = yearly_means)
+      # reshape to wide format (one row per year)
+      wide_data <- yearly_means %>%
+        select(year, site_group, all_of(var)) %>%
+        tidyr::pivot_wider(names_from = site_group, values_from = all_of(var)) %>%
+        drop_na()  # ensure complete pairs
+      # paired t-test
+      test <- t.test(wide_data[["Great Meadow"]], wide_data[["Gilmore Meadow"]], paired = TRUE)
       data.frame(variable = var, p_value = test$p.value, significant = test$p.value < alpha)
     }, error = function(e) {
       data.frame(variable = var, p_value = NA, significant = FALSE)
@@ -181,6 +217,126 @@ create_picker_input <- function(id, label, choices, selected, multiple = TRUE, n
               choices = choices, selected = selected, multiple = multiple,
               options = c(PICKER_OPTIONS, list(`none-selected-text` = none_text)))
 }
+
+# Time series plotting function for statistics
+plot_wl_metric <- function(data, grand_data, metric, y_label, title, sig_results = NULL) {
+  
+  # enforce consistent ordering
+  data$wetland <- factor(data$wetland, 
+                         levels = c("Great Meadow", "Gilmore Meadow"))
+  grand_data$wetland <- factor(grand_data$wetland, 
+                               levels = c("Great Meadow", "Gilmore Meadow"))
+  
+  avg_col   <- paste0(metric, "_avg")
+  sd_col    <- paste0(metric, "_sd")
+  grand_col <- paste0(metric, "_avg_grand")
+  
+  # Create grand mean labels with values
+  gm_grand <- grand_data %>% filter(wetland == "Great Meadow") %>% pull(!!sym(grand_col))
+  gl_grand <- grand_data %>% filter(wetland == "Gilmore Meadow") %>% pull(!!sym(grand_col))
+  
+  # Create a combined factor for the legend
+  grand_data <- grand_data %>%
+    mutate(grand_label = factor(
+      paste0(wetland, " Grand Mean"),
+      levels = c("Great Meadow Grand Mean", "Gilmore Meadow Grand Mean")
+    ))
+  
+  ggplot(data, aes(x = year, y = .data[[avg_col]], color = wetland, shape = wetland, group = wetland)) +
+    geom_line(linewidth = 1.2) +
+    geom_point(
+      size = 6,
+      position = position_jitter(width = 0.03, height = 0)
+    ) +
+    
+    geom_errorbar(
+      aes(ymin = .data[[avg_col]] - .data[[sd_col]],
+          ymax = .data[[avg_col]] + .data[[sd_col]]),
+      width = 0, alpha = 0.6
+    ) +
+    
+    # Grand mean lines with separate mapping
+    geom_hline(
+      data = grand_data,
+      aes(yintercept = .data[[grand_col]], 
+          linetype = grand_label,
+          color = wetland),
+      linewidth = 1,
+      show.legend = TRUE,
+      key_glyph = "path"
+    ) +
+    
+    scale_x_continuous(
+      breaks = seq(min(data$year), max(data$year), by = 1)
+    ) +
+    
+    scale_y_continuous(n.breaks = 8) +
+    
+    scale_color_manual(
+      name = "Wetland Yearly Mean",
+      values = c(
+        "Great Meadow" = "black",
+        "Gilmore Meadow" = "grey67"
+      ),
+      breaks = c("Great Meadow", "Gilmore Meadow")
+    ) +
+    
+    scale_shape_manual(
+      name = "Wetland Yearly Mean",
+      values = c(
+        "Great Meadow" = 16,
+        "Gilmore Meadow" = 17
+      )
+    ) +
+    
+    scale_linetype_manual(
+      name = "Wetland Grand Mean",
+      values = c(
+        "Great Meadow Grand Mean" = "dashed",
+        "Gilmore Meadow Grand Mean" = "dashed"
+      ),
+      labels = c(
+        "Great Meadow Grand Mean" = sprintf("Great Meadow (%.2f)", gm_grand),
+        "Gilmore Meadow Grand Mean" = sprintf("Gilmore Meadow (%.2f)", gl_grand)
+      )
+    ) +
+    
+    labs(
+      title = title,
+      x = "Year",
+      y = y_label
+    ) +
+    
+    theme_minimal() +
+    
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+      axis.text.y = element_text(size = 12),
+      axis.title.x = element_text(size = 14),
+      axis.title.y = element_text(size = 14),
+      legend.position = "right",
+      legend.title = element_text(size = 12, face = "bold"),
+      legend.text = element_text(size = 11),
+      legend.key.size = unit(1.2, "cm"),
+      legend.spacing.y = unit(0.2, "cm"),
+      legend.box = "vertical",
+      plot.margin = margin(10, 10, 10, 10)
+    ) +
+    
+    guides(
+      color = guide_legend(order = 1, override.aes = list(linewidth = 1.2)),
+      shape = guide_legend(order = 1),
+      linetype = guide_legend(
+        order = 2, 
+        override.aes = list(
+          color = c("black", "grey67"),
+          linewidth = 1
+        )
+      )
+    )
+}
+
 
 #----------------#
 ####    UI    ####
@@ -273,9 +429,9 @@ ui <- page_fluid(
                              class = "btn-primary btn-sm", icon = icon("download"))),
           
           div(style = "margin-top: 15px; text-align: center;",
-                tags$a(href = "#about",
-                       class = "btn btn-primary btn-sm", icon("info-circle"),
-                       "About")),
+              tags$a(href = "#about",
+                     class = "btn btn-primary btn-sm", icon("info-circle"),
+                     "About")),
         ),
         
         card(
@@ -295,7 +451,54 @@ ui <- page_fluid(
       )
   ),
   
-  # SECOND SECTION: Water Level Stats
+  # SECOND SECTION: Water Level Statistics Time Series
+  div(class = "content-section",
+      layout_sidebar(
+        sidebar = sidebar(
+          class = "sidebar-custom", width = 300,
+          h4("Time Series Controls", style = "color: #1B365D; margin-bottom: 20px;"),
+          
+          selectInput("selected_metric", 
+                      label = div(icon("chart-line"), "Select Statistic:"),
+                      choices = c(
+                        "Mean Water Level (cm)" = "WL_mean",
+                        "SD Water Level (cm)" = "WL_sd",
+                        "Minimum Water Level (cm)" = "WL_min",
+                        "Maximum Water Level (cm)" = "WL_max",
+                        "Maximum Hourly Increase (cm)" = "max_inc",
+                        "Maximum Hourly Decrease (cm)" = "max_dec",
+                        "Growing Season Change (cm)" = "GS_change",
+                        "GS % Surface Water" = "prop_over_0cm",
+                        "GS % Within 30cm" = "prop_bet_0_neg30cm",
+                        "GS % Over 30cm Deep" = "prop_under_neg30cm"
+                      ),
+                      selected = "WL_mean"),
+          
+          br(),
+          div(style = "padding: 10px; background-color: #e8f4f8; border-radius: 8px; border-left: 4px solid #3498db;",
+              p(icon("info-circle"), "Plots show the yearly averages of each statistic across all sites within each wetland over time. Dashed lines represent the grand mean for each wetland (average across all years).", 
+                style = "margin: 0; font-size: 0.9rem; color: #2c3e50;")),
+          
+          div(style = "margin-top: 15px; text-align: center;",
+              downloadButton("download_timeseries", "Download Plot", 
+                             class = "btn-primary btn-sm", icon = icon("download"))),
+          
+          div(style = "margin-top: 15px; text-align: center;",
+              tags$a(href = "#about",
+                     class = "btn btn-primary btn-sm", icon("info-circle"),
+                     "About"))
+        ),
+        
+        card(
+          full_screen = TRUE,
+          card_header(class = "bg-primary text-white", "Water Level Statistic Time Series"),
+          uiOutput("timeseries_significance_info"),
+          plotOutput("stat_timeseries", height = "600px")
+        )
+      )
+  ),
+  
+  # THIRD SECTION: Water Level Stats
   div(class = "content-section",
       layout_sidebar(
         sidebar = sidebar(
@@ -313,16 +516,13 @@ ui <- page_fluid(
                               none_text = "Choose year(s)"),
           
           radioButtons("time_summary", "Summarize Water Level Statistics By:",
-                       choices = c("Each Year" = "year",
-                                   "Average Across Years" = "multi",
-                                   "All Sites (with statistical significance)" = "all_sites"),
+                       choices = c("Site per Year" = "year",
+                                   "Site Averaged Across Years" = "multi",
+                                   "Wetland per Year" = "wetland_year",
+                                   "Wetland Averaged Across Years" = "all_sites"),
                        selected = "year"),
           
           br(),
-          div(style = "padding: 10px; background-color: #e8f4f8; border-radius: 8px; border-left: 4px solid #3498db;",
-              p(icon("info-circle"), " Growing season statistics calculated from May through October.", 
-                style = "margin: 0; font-size: 0.9rem; color: #2c3e50;")),
-          
           div(style = "margin-top: 15px; text-align: center;",
               downloadButton("download_stats", "Download Table", 
                              class = "btn-primary btn-sm", icon = icon("download"))),
@@ -335,7 +535,7 @@ ui <- page_fluid(
         
         card(
           full_screen = TRUE,
-          card_header(class = "bg-primary text-white", "Growing Season Water Level Statistics"),
+          card_header(class = "bg-primary text-white", "Water Level Statistics"),
           div(style = "padding: 10px;",
               uiOutput("significance_info"),
               dataTableOutput("wl_stats"))
@@ -345,7 +545,7 @@ ui <- page_fluid(
   
   # About section
   div(id = "about",
-    class = "brush-info-section",
+      class = "brush-info-section",
       card(
         card_header(class = "bg-success text-white", "About"),
         includeHTML("./www/About.html")
@@ -478,6 +678,15 @@ server <- function(input, output, session) {
     length(selected_wetlands) >= 2 && all(c("Great Meadow", "Gilmore Meadow") %in% selected_wetlands)
   })
   
+  # Significance results for time series plot
+  timeseries_significance <- reactive({
+    # Use all sites and all years in wl_stats for time series significance
+    all_sites <- unique(wl_stats$site)
+    all_years <- unique(wl_stats$year)
+    
+    calculate_wetland_significance(wl_stats, all_years, all_sites, alpha = 0.05)
+  })
+  
   # Filtered statistics data
   filtered_stats <- reactive({
     req(input$stats_site, input$stats_year, input$time_summary)
@@ -509,6 +718,23 @@ server <- function(input, output, session) {
                  .groups = "drop"
                ) %>%
                rename(Site = site, Wetland = wetland, `Mean Water Level (cm)` = WL_mean,
+                      `SD Water Level (cm)` = WL_sd, `Minimum Water Level (cm)` = WL_min,
+                      `Maximum Water Level (cm)` = WL_max, `Maximum Hourly Increase (cm)` = max_inc,
+                      `Maximum Hourly Decrease (cm)` = max_dec, `Growing Season Change (cm)` = GS_change,
+                      `GS % Surface Water` = prop_over_0cm, `GS % Within 30cm` = prop_bet_0_neg30cm,
+                      `GS % Over 30cm Deep` = prop_under_neg30cm)
+           },
+           "wetland_year" = {
+             # Wetland per Year (NEW)
+             data %>%
+               group_by(wetland, year) %>%
+               summarise(
+                 across(c(WL_mean, WL_sd, WL_min, WL_max, max_inc, max_dec, GS_change,
+                          prop_over_0cm, prop_bet_0_neg30cm, prop_under_neg30cm), 
+                        ~ round(mean(.x, na.rm = TRUE), 2)),
+                 .groups = "drop"
+               ) %>%
+               rename(Year = year, Wetland = wetland, `Mean Water Level (cm)` = WL_mean,
                       `SD Water Level (cm)` = WL_sd, `Minimum Water Level (cm)` = WL_min,
                       `Maximum Water Level (cm)` = WL_max, `Maximum Hourly Increase (cm)` = max_inc,
                       `Maximum Hourly Decrease (cm)` = max_dec, `Growing Season Change (cm)` = GS_change,
@@ -547,12 +773,11 @@ server <- function(input, output, session) {
     req(input$time_summary == "all_sites")
     
     base_note <- HTML("
-    <div style='background-color:#f9f9f9; padding:10px; border-left:4px solid #1B365D; margin-bottom:10px; font-size:13px;'>
-      <strong>Note:</strong><br>
-      • To compare sites, both Great Meadow and Gilmore Meadow must be selected.<br>
-      • Significance testing requires more than three years of data.<br>
-      • If fewer than three years are chosen, results display without significance testing.
-    </div>")
+  <div style='background-color:#f9f9f9; padding:10px; border-left:4px solid #1B365D; margin-bottom:10px; font-size:13px;'>
+    <strong>Note:</strong><br>
+    • For comparison with significance testing, both Great Meadow and Gilmore Meadow and at least four years of data must be selected. Otherwise, results display without significance testing.<br>
+    • Significance testing compares the grand means of each statistic between wetlands for all selected years and sites.
+  </div>")
     
     if (show_significance_info()) {
       sig_results <- significance_results()
@@ -561,17 +786,50 @@ server <- function(input, output, session) {
         sig_vars <- sig_results %>% filter(significant) %>% pull(variable)
         
         if (length(sig_vars) > 0) {
+          # At least one significant result
           sig_display_names <- VAR_MAPPING[sig_vars]
           sig_display_names <- sig_display_names[!is.na(sig_display_names)]
           
+          # Get p-values for significant variables
+          sig_pvals <- sig_results %>% 
+            filter(significant) %>% 
+            select(variable, p_value)
+          
+          sig_list <- sapply(sig_display_names, function(name) {
+            var_code <- names(VAR_MAPPING)[VAR_MAPPING == name]
+            pval <- sig_pvals %>% filter(variable == var_code) %>% pull(p_value)
+            paste0("<li>", name, " (p = ", sprintf("%.4f", pval), ")</li>")
+          })
+          
           return(tagList(
             base_note,
-            div(class = "significance-info", style = "margin-bottom: 25px;",
-                h5(icon("asterisk"), " Statistical Significance"),
-                p("Yellow highlighted variables show significant differences (p < 0.05) between Great Meadow and Gilmore Meadow wetlands:"),
-                tags$ul(lapply(sig_display_names, function(name) tags$li(name))),
-                p(class = "note", "Tests compare averages between each wetland for all selected years and sites.",
-                  style = "margin-top: 5px; font-size: 0.8rem; font-style: italic; color: #6c757d;")
+            div(
+              style = "margin-bottom: 15px;",
+              div(
+                style = 'background-color:#fff3cd; padding:8px 12px; border-left:4px solid #856404; border-radius:4px;',
+                HTML(sprintf(
+                  "<strong style='color:#856404; font-size:13px;'>%s Statistical Significance</strong><br>
+              <span style='color:#333333; font-size:12px;'>Yellow highlighted variables show significant differences (p < 0.05) between Great Meadow and Gilmore Meadow wetlands:</span><br>
+              <ul style='margin-top:8px; margin-bottom:5px; color:#333333; font-size:12px;'>%s</ul>",
+                  as.character(icon("asterisk")),
+                  paste(sig_list, collapse = "")
+                ))
+              )
+            )
+          ))
+        } else {
+          # No significant results found
+          return(tagList(
+            base_note,
+            div(
+              style = "margin-bottom: 15px;",
+              div(
+                style = 'background-color:#f5f5f5; padding:8px 12px; border-left:4px solid #6c757d; border-radius:4px;',
+                HTML(sprintf(
+                  "<strong style='color:#495057; font-size:13px;'>No Statistically Significant Differences</strong><br>
+              <span style='color:#666666; font-size:12px;'>No variables show significant differences (p < 0.05) between Great Meadow and Gilmore Meadow wetlands for the selected sites and years.</span>"
+                ))
+              )
             )
           ))
         }
@@ -583,12 +841,20 @@ server <- function(input, output, session) {
   
   # Render water level stats table with significance highlighting
   output$wl_stats <- DT::renderDataTable({
-    data <- filtered_stats() %>%
-      arrange(desc(Site == "All Sites"), Site)
+    data <- filtered_stats()
+    
+    # Conditional sorting based on what columns exist
+    if ("Site" %in% names(data)) {
+      data <- data %>% arrange(desc(Site == "All Sites"), Site)
+    } else if ("Wetland" %in% names(data) && "Year" %in% names(data)) {
+      data <- data %>% arrange(Wetland, Year)
+    } else {
+      data <- data %>% arrange(Wetland)
+    }
     
     dt <- datatable(data, rownames = FALSE,
                     options = list(pageLength = 10, scrollX = TRUE)) %>%
-      formatStyle(columns = names(data), valueColumns = "Site")
+      formatStyle(columns = names(data), valueColumns = if ("Site" %in% names(data)) "Site" else "Wetland")
     
     if (show_significance_info()) {
       sig_results <- significance_results()
@@ -600,7 +866,8 @@ server <- function(input, output, session) {
           
           if (nrow(sig_row) > 0 && sig_row$significant) {
             dt <- dt %>%
-              formatStyle(col_name, valueColumns = "Site",
+              formatStyle(col_name, 
+                          valueColumns = if ("Site" %in% names(data)) "Site" else "Wetland",
                           backgroundColor = styleEqual("All Sites", "#fff3cd"))
           }
         }
@@ -609,6 +876,87 @@ server <- function(input, output, session) {
     
     dt
   })
+  
+  ## NEW SECTION ---------------------------------------------------------------
+  
+  # Render time series plot based on selected metric
+  output$stat_timeseries <- renderPlot({
+    req(input$selected_metric)
+    
+    metric <- input$selected_metric
+    
+    metric_labels <- c(
+      "WL_mean" = "Mean Water Level (cm)",
+      "WL_sd" = "SD Water Level (cm)",
+      "WL_min" = "Minimum Water Level (cm)",
+      "WL_max" = "Maximum Water Level (cm)",
+      "max_inc" = "Maximum Hourly Increase (cm)",
+      "max_dec" = "Maximum Hourly Decrease (cm)",
+      "GS_change" = "Growing Season Change (cm)",
+      "prop_over_0cm" = "GS % Surface Water",
+      "prop_bet_0_neg30cm" = "GS % Within 30cm",
+      "prop_under_neg30cm" = "GS % Over 30cm Deep"
+    )
+    
+    metric_label <- metric_labels[metric]
+    
+    plot_wl_metric(
+      wl_test,
+      grand_means,
+      metric = metric,
+      y_label = metric_label,
+      title = paste(metric_label, "Over Time"),
+      sig_results = timeseries_significance()
+    )
+  })
+  
+  # Render significance info for time series
+  output$timeseries_significance_info <- renderUI({
+    sig_results <- timeseries_significance()
+    
+    if (!is.null(sig_results)) {
+      sig_row <- sig_results %>% filter(variable == input$selected_metric)
+      
+      if (nrow(sig_row) > 0) {
+        # Always show p-value, but change styling based on significance
+        if (sig_row$significant) {
+          # Significant result - yellow background
+          div(
+            style = "margin-top: 0px; margin-bottom: 2px;",
+            div(
+              style = 'background-color:#fff3cd; padding:5px; border-left:4px solid #856404; border-radius:4px;',
+              HTML(sprintf(
+                "<strong style='color:#856404; font-size:13px;'>%s Statistically Significant (p = %.4f)</strong><br>
+          <span style='color:#666666; font-size:13px; font-style:italic;'>
+          Significance testing compares grand means between Great Meadow and Gilmore Meadow wetlands.
+          </span>",
+                as.character(icon("asterisk")),
+                sig_row$p_value
+              ))
+            )
+          )
+        } else {
+          # Not significant - grey background
+          div(
+            style = "margin-top: 0px; margin-bottom: 2px;",
+            div(
+              style = 'background-color:#f5f5f5; padding:5px; border-left:4px solid #6c757d; border-radius:4px;',
+              HTML(sprintf(
+                "<strong style='color:#495057; font-size:13px;'>Not Statistically Significant (p = %.4f)</strong><br>
+          <span style='color:#666666; font-size:13px; font-style:italic;'>
+          Significance testing compares grand means between Great Meadow and Gilmore Meadow wetlands.
+          </span>",
+                sig_row$p_value
+              ))
+            )
+          )
+        }
+      }
+    }
+  })
+  
+  ## ---------------------------------------------------------------------------
+  
   
   # Download handlers
   output$download_brush <- downloadHandler(
@@ -619,9 +967,10 @@ server <- function(input, output, session) {
   output$download_stats <- downloadHandler(
     filename = function() {
       suffix <- switch(input$time_summary,
-                       "multi" = "averaged_stats",
-                       "all_sites" = "all_sites_significance_stats", 
-                       "site_stats"
+                       "year" = "site_per_year_stats",
+                       "multi" = "site_averaged_stats",
+                       "wetland_year" = "wetland_per_year_stats",
+                       "all_sites" = "wetland_averaged_significance_stats"
       )
       paste(suffix, "_", Sys.Date(), ".csv", sep = "")
     },
@@ -639,8 +988,67 @@ server <- function(input, output, session) {
       ggsave(file, plot = p, width = 12, height = 8, dpi = 300, bg = "white")
     }
   )
+  
+  # Download handler for time series plot
+  output$download_timeseries <- downloadHandler(
+    filename = function() {
+      metric_name <- gsub(" ", "_", gsub("[()]", "", input$selected_metric))
+      paste0("timeseries_", metric_name, "_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      # Create proper label mapping
+      metric_labels <- c(
+        "WL_mean" = "Mean Water Level (cm)",
+        "WL_sd" = "SD Water Level (cm)",
+        "WL_min" = "Minimum Water Level (cm)",
+        "WL_max" = "Maximum Water Level (cm)",
+        "max_inc" = "Maximum Hourly Increase (cm)",
+        "max_dec" = "Maximum Hourly Decrease (cm)",
+        "GS_change" = "Growing Season Change (cm)",
+        "prop_over_0cm" = "GS % Surface Water",
+        "prop_bet_0_neg30cm" = "GS % Within 30cm",
+        "prop_under_neg30cm" = "GS % Over 30cm Deep"
+      )
+      
+      metric_label <- metric_labels[input$selected_metric]
+      
+      # Get significance results for the download
+      sig_results <- isolate(timeseries_significance())
+      
+      # Create plot with significance
+      p <- plot_wl_metric(wl_test, grand_means, input$selected_metric, 
+                          metric_label, paste(metric_label, "Over Time"),
+                          sig_results = sig_results)
+      
+      # Add p-value annotation if available
+      if (!is.null(sig_results)) {
+        sig_row <- sig_results %>% filter(variable == input$selected_metric)
+        
+        if (nrow(sig_row) > 0 && !is.na(sig_row$p_value)) {
+          # Determine label based on significance
+          if (sig_row$significant) {
+            label_text <- sprintf("p = %.4f *", sig_row$p_value)
+          } else {
+            label_text <- sprintf("p = %.4f (ns)", sig_row$p_value)
+          }
+          
+          # Add annotation to plot (simple text, no background)
+          p <- p + 
+            annotate("text", 
+                     x = Inf, y = Inf, 
+                     label = label_text,
+                     hjust = 1.05, vjust = 1.5,
+                     size = 4.5,
+                     fontface = "bold",
+                     color = "black")
+        }
+      }
+      
+      ggsave(file, plot = p, width = 12, height = 8, dpi = 300, bg = "white")
+    }
+  )
+  
 }
 
 # Run app
 shinyApp(ui, server)
-
