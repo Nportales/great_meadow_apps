@@ -70,6 +70,215 @@ create_picker_input <- function(id, label, choices, selected,
   )
 }
 
+# Time series plotting function
+plot_veg_metric <- function(data, grand_data, metric, y_label, title) {
+  
+  # Sort wetlands_in_data to ensure Great Meadow is first
+  wetlands_in_data <- unique(as.character(data$wetland))
+  wetlands_in_data <- sort(wetlands_in_data, decreasing = TRUE)  # Great before Gilmore
+  
+  # Enforce consistent ordering - Great Meadow first
+  data$wetland <- factor(data$wetland,
+                         levels = c("Great Meadow", "Gilmore Meadow"))
+  
+  # Filter grand_data to only include wetlands present in data
+  grand_data <- grand_data %>%
+    filter(wetland %in% wetlands_in_data) %>%
+    mutate(wetland = factor(wetland, levels = c("Great Meadow", "Gilmore Meadow")))
+  
+  avg_col   <- paste0(metric, "_avg")
+  sd_col    <- paste0(metric, "_sd")
+  grand_col <- paste0(metric, "_avg_grand")
+  
+  # Create grand mean labels with values - only for wetlands present
+  gm_grand <- if ("Great Meadow" %in% wetlands_in_data) {
+    grand_data %>% filter(wetland == "Great Meadow") %>% pull(!!sym(grand_col))
+  } else {
+    NULL
+  }
+  
+  gl_grand <- if ("Gilmore Meadow" %in% wetlands_in_data) {
+    grand_data %>% filter(wetland == "Gilmore Meadow") %>% pull(!!sym(grand_col))
+  } else {
+    NULL
+  }
+  
+  # Create a combined factor for the legend - only for present wetlands
+  # Ensure Great Meadow comes before Gilmore Meadow
+  grand_levels <- paste0(wetlands_in_data, " Grand Mean")
+  grand_data <- grand_data %>%
+    mutate(grand_label = factor(
+      paste0(wetland, " Grand Mean"),
+      levels = grand_levels
+    ))
+  
+  # Build label vector dynamically - Great Meadow first
+  grand_labels <- c()
+  grand_label_names <- c()
+  if (!is.null(gm_grand)) {
+    grand_labels <- c(grand_labels, sprintf("Great Meadow (%.2f)", gm_grand))
+    grand_label_names <- c(grand_label_names, "Great Meadow Grand Mean")
+  }
+  if (!is.null(gl_grand)) {
+    grand_labels <- c(grand_labels, sprintf("Gilmore Meadow (%.2f)", gl_grand))
+    grand_label_names <- c(grand_label_names, "Gilmore Meadow Grand Mean")
+  }
+  names(grand_labels) <- grand_label_names
+  
+  # Create color values for grand means
+  grand_colors <- setNames(
+    c("black", "grey67")[match(wetlands_in_data, c("Great Meadow", "Gilmore Meadow"))],
+    grand_levels
+  )
+  
+  p <- ggplot(data, aes(x = year, y = .data[[avg_col]],
+                        color = wetland, shape = wetland, group = wetland)) +
+    
+    geom_line(linewidth = 1.2) +
+    
+    geom_point(
+      size = 6,
+      position = position_jitter(width = 0.03, height = 0)
+    ) +
+    
+    geom_errorbar(
+      aes(ymin = .data[[avg_col]] - .data[[sd_col]],
+          ymax = .data[[avg_col]] + .data[[sd_col]]),
+      width = 0, alpha = 0.6
+    ) +
+    
+    # Grand mean lines - use wetland for color mapping
+    geom_hline(
+      data = grand_data,
+      aes(yintercept = .data[[grand_col]], 
+          linetype = grand_label,
+          color = wetland),
+      linewidth = 1,
+      show.legend = c(linetype = TRUE, color = FALSE),  # Only show linetype in legend
+      key_glyph = "path"
+    ) +
+    
+    scale_x_continuous(
+      breaks = seq(min(data$year), max(data$year), by = 1)
+    ) +
+    
+    scale_y_continuous(n.breaks = 8) +
+    
+    scale_color_manual(
+      name = "Wetland Annual Mean",
+      values = c(
+        "Great Meadow" = "black",
+        "Gilmore Meadow" = "grey67"
+      ),
+      breaks = c("Great Meadow", "Gilmore Meadow"),  # Explicit order
+      drop = TRUE
+    ) +
+    
+    scale_shape_manual(
+      name = "Wetland Annual Mean",
+      values = c(
+        "Great Meadow" = 16,
+        "Gilmore Meadow" = 17
+      ),
+      breaks = c("Great Meadow", "Gilmore Meadow"),  # Explicit order
+      drop = TRUE
+    ) +
+    
+    scale_linetype_manual(
+      name = "Wetland Grand Mean",
+      values = setNames(
+        rep("dashed", length(grand_levels)),
+        grand_levels
+      ),
+      labels = grand_labels,
+      breaks = grand_levels,
+      drop = TRUE
+    ) +
+    
+    labs(
+      title = title,
+      x = "Year",
+      y = y_label
+    ) +
+    
+    theme_minimal() +
+    
+    theme(
+      plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+      axis.text.y = element_text(size = 12),
+      axis.title.x = element_text(size = 14),
+      axis.title.y = element_text(size = 14),
+      legend.position = "right",
+      legend.justification = "left",
+      legend.box.margin = margin(0, 0, 0, 5),
+      legend.margin = margin(0, 0, 0, 0),
+      legend.title = element_text(size = 12, face = "bold"),
+      legend.text = element_text(size = 11),
+      legend.key.size = unit(1.2, "cm"),
+      legend.spacing.y = unit(0.2, "cm"),
+      legend.box = "vertical",
+      plot.margin = margin(10, 5, 10, 10)
+    ) +
+    
+    guides(
+      color = guide_legend(order = 1, override.aes = list(linewidth = 1.2)),
+      shape = guide_legend(order = 1),
+      linetype = guide_legend(
+        order = 2,
+        override.aes = list(
+          color = grand_colors,  # Use dynamically created color vector
+          linewidth = 1
+        )
+      )
+    )
+  
+  # ADD SHADING ONLY FOR VMMI
+  if (metric == "vmmi") {
+    p <- p +
+      annotate("rect",
+               xmin = -Inf, xmax = Inf,
+               ymin = -Inf, ymax = 41.48136,
+               fill = "red", alpha = 0.08) +
+      
+      annotate("rect",
+               xmin = -Inf, xmax = Inf,
+               ymin = 41.48136, ymax = 60.94853,
+               fill = "goldenrod", alpha = 0.04) +
+      
+      annotate("rect",
+               xmin = -Inf, xmax = Inf,
+               ymin = 60.94853, ymax = Inf,
+               fill = "green3", alpha = 0.08) +
+      
+      annotate("text",
+               x = min(data$year),
+               y = 63,
+               label = "Good",
+               color = "darkgreen",
+               hjust = 0,
+               fontface = "bold") +
+      
+      annotate("text",
+               x = min(data$year),
+               y = 44,
+               label = "Fair",
+               color = "goldenrod",
+               hjust = 0,
+               fontface = "bold") +
+      
+      annotate("text",
+               x = min(data$year),
+               y = 20,
+               label = "Poor",
+               color = "red",
+               hjust = 0,
+               fontface = "bold")
+  }
+  
+  return(p)
+}
+
 #----------------#
 ####    UI    ####
 #----------------#
@@ -111,7 +320,7 @@ ui <- page_fluid(
   ),
   
   #--------------------------------#
-  ####   VMMI + Species Section ####
+  ####       VMMI Section       ####
   #--------------------------------#
   
   div(class = "content-section",
@@ -134,9 +343,11 @@ ui <- page_fluid(
             "*Note: Year options update based on selected site(s)."
           ),
           
-          radioButtons("vmmi_summary", "Summarize By:",
-                       choices = c("Each Year" = "year",
-                                   "Average Across Years" = "multi"),
+          radioButtons("vmmi_summary", "Summarize VMMI Statistics By:",
+                       choices = c("Site per Year" = "year",
+                                   "Site Averaged Across Years" = "multi",
+                                   "Wetland per Year" = "wetland_year",
+                                   "Wetland Averaged Across Years" = "all_wetlands"),
                        selected = "year"),
           
           br(),
@@ -159,6 +370,67 @@ ui <- page_fluid(
         )
       )
   ),
+  
+  #--------------------------------#
+  ####   Time Series Section    ####
+  #--------------------------------#
+  
+  div(class = "content-section",
+      layout_sidebar(
+        
+        sidebar = sidebar(
+          class = "sidebar-custom", width = 300,
+          
+          h4("Plot Controls", style = "color: #2E7D32;"),
+          
+          selectInput(
+            "ts_metric",
+            div(icon("chart-line"), "Select Metric:"),
+            choices = c(
+              "VMMI" = "vmmi",
+              "Mean COC" = "mean.coc",
+              "Invasive Cover" = "inv.cov",
+              "Bryophyte Cover" = "bryo.cov",
+              "Stress Tolerance Cover" = "strtol.cov"
+            ),
+            selected = "vmmi"
+          ),
+          
+          checkboxGroupInput(
+            "ts_wetland",
+            div("Select Wetland(s):"),
+            choices = c("Great Meadow", "Gilmore Meadow"),
+            selected = c("Great Meadow", "Gilmore Meadow")
+          ),
+          
+          br(),
+          div(style = "padding: 10px; background-color: #e8f5e9; border-radius: 8px; border-left: 4px solid #2E7D32;",
+              p(icon("info-circle"), "Lines show annual means ± SD across sites within each wetland. Dashed lines represent grand means across all years.", 
+                style = "margin: 0; font-size: 0.9rem; color: #1b5e20;")),
+          
+          br(),
+          downloadButton("download_plot", "Download Plot",
+                         class = "btn-primary btn-sm"),
+          
+          div(style = "margin-top: 15px; text-align: center;",
+              tags$a(href = "#about",
+                     class = "btn btn-primary btn-sm", icon("info-circle"),
+                     "About"))
+        ),
+        
+        card(
+          full_screen = TRUE,
+          card_header(class = "bg-primary text-white",
+                      "VMMI Metrics Over Time"),
+          div(style = "padding: 20px;",
+              plotOutput("ts_plot", height = "500px"))
+        )
+      )
+  ),
+  
+  #--------------------------------#
+  ####   Species List Section   ####
+  #--------------------------------#
   
   div(class = "content-section",
       layout_sidebar(
@@ -254,11 +526,19 @@ server <- function(input, output, session) {
   vmmi_summary <- reactive({
     
     df <- vmmi_filtered() %>%
-      left_join(monitoring_sites, by = "site.name")
+      left_join(monitoring_sites, by = "site.name") %>%
+      mutate(
+        wetland = case_when(
+          grepl("Great Meadow", display.site.name) ~ "Great Meadow",
+          grepl("Gilmore Meadow", display.site.name) ~ "Gilmore Meadow",
+          TRUE ~ "Other"
+        )
+      )
     
     switch(input$vmmi_summary,
            
            "year" = {
+             # Site per Year
              df %>%
                mutate(across(where(is.numeric), ~ round(.x, 2))) %>%
                select(
@@ -278,18 +558,18 @@ server <- function(input, output, session) {
            },
            
            "multi" = {
+             # Site Averaged Across Years
              df %>%
                group_by(site.name) %>%
                summarise(
                  Site = first(display.site.name),
+                 Wetland = first(wetland),
                  Year = paste0(min(year), "–", max(year)),
                  across(c(mean.coc, inv.cov, bryo.cov, strtol.cov, vmmi),
                         ~ round(mean(.x, na.rm = TRUE), 2)),
                  
-                 # store mean VMMI separately (for rating) in temp column
                  vmmi_mean = mean(vmmi, na.rm = TRUE),
                  
-                 # assign rating based on averaged VMMI
                  vmmi.rating = case_when(
                    vmmi_mean > 60.94853 ~ "Good",
                    vmmi_mean < 41.48136 ~ "Poor",
@@ -297,7 +577,6 @@ server <- function(input, output, session) {
                  ),
                  .groups = "drop"
                ) %>%
-               # now remove temp column
                select(-site.name, -vmmi_mean) %>%
                
                rename(
@@ -312,7 +591,140 @@ server <- function(input, output, session) {
                  Site = factor(Site, levels = names(site_lookup))
                ) %>%
                arrange(Site)
+           },
+           
+           "wetland_year" = {
+             # Wetland per Year (NEW)
+             df %>%
+               group_by(wetland, year) %>%
+               summarise(
+                 across(c(mean.coc, inv.cov, bryo.cov, strtol.cov, vmmi),
+                        ~ round(mean(.x, na.rm = TRUE), 2)),
+                 
+                 vmmi_mean = mean(vmmi, na.rm = TRUE),
+                 
+                 vmmi.rating = case_when(
+                   vmmi_mean > 60.94853 ~ "Good",
+                   vmmi_mean < 41.48136 ~ "Poor",
+                   TRUE ~ "Fair"
+                 ),
+                 .groups = "drop"
+               ) %>%
+               select(-vmmi_mean) %>%
+               rename(
+                 Year = year,
+                 Wetland = wetland,
+                 `Mean COC` = mean.coc,
+                 `Invasive Cover` = inv.cov,
+                 `Bryophyte Cover` = bryo.cov,
+                 `Stress Tolerance Cover` = strtol.cov,
+                 VMMI = vmmi,
+                 `VMMI Rating` = vmmi.rating
+               ) %>%
+               arrange(Wetland, Year)
+           },
+           
+           "all_wetlands" = {
+             # Wetland Averaged Across Years (NEW)
+             df %>%
+               group_by(wetland) %>%
+               summarise(
+                 Year = paste0(min(year), "–", max(year)),
+                 across(c(mean.coc, inv.cov, bryo.cov, strtol.cov, vmmi),
+                        ~ round(mean(.x, na.rm = TRUE), 2)),
+                 
+                 vmmi_mean = mean(vmmi, na.rm = TRUE),
+                 
+                 vmmi.rating = case_when(
+                   vmmi_mean > 60.94853 ~ "Good",
+                   vmmi_mean < 41.48136 ~ "Poor",
+                   TRUE ~ "Fair"
+                 ),
+                 .groups = "drop"
+               ) %>%
+               select(-vmmi_mean) %>%
+               rename(
+                 Wetland = wetland,
+                 `Mean COC` = mean.coc,
+                 `Invasive Cover` = inv.cov,
+                 `Bryophyte Cover` = bryo.cov,
+                 `Stress Tolerance Cover` = strtol.cov,
+                 VMMI = vmmi,
+                 `VMMI Rating` = vmmi.rating
+               ) %>%
+               arrange(Wetland)
            }
+    )
+  })
+  
+  #-------------------------------#
+  ####  Time Series Processing ####
+  #-------------------------------#
+  
+  # Compute statistics for time series
+  veg_stats <- reactive({
+    req(input$ts_wetland)
+    
+    # Add wetland column to vmmi_data based on site names
+    vmmi_with_wetland <- vmmi_data %>%
+      left_join(monitoring_sites, by = "site.name") %>%
+      mutate(
+        wetland = case_when(
+          grepl("Great Meadow", display.site.name) ~ "Great Meadow",
+          grepl("Gilmore Meadow", display.site.name) ~ "Gilmore Meadow",
+          TRUE ~ "Other"
+        )
+      ) %>%
+      filter(wetland %in% input$ts_wetland)
+    
+    vmmi_with_wetland %>%
+      group_by(wetland, year) %>%
+      summarise(
+        across(
+          c(vmmi, mean.coc, inv.cov, bryo.cov, strtol.cov),
+          list(avg = ~mean(.x, na.rm = TRUE),
+               sd  = ~sd(.x, na.rm = TRUE)),
+          .names = "{.col}_{.fn}"
+        ),
+        n_sites = n_distinct(site.name),
+        .groups = "drop"
+      )
+  })
+  
+  # Compute grand means
+  veg_grand <- reactive({
+    req(veg_stats())
+    
+    veg_stats() %>%
+      group_by(wetland) %>%
+      summarise(
+        across(
+          ends_with("_avg"),
+          ~ mean(.x, na.rm = TRUE),
+          .names = "{.col}_grand"
+        ),
+        .groups = "drop"
+      )
+  })
+  
+  # Render time series plot
+  output$ts_plot <- renderPlot({
+    req(input$ts_metric, input$ts_wetland)
+    
+    metric_labels <- c(
+      "vmmi" = "VMMI",
+      "mean.coc" = "Mean COC",
+      "inv.cov" = "Invasive Cover (%)",
+      "bryo.cov" = "Bryophyte Cover (%)",
+      "strtol.cov" = "Stress Tolerance Cover (%)"
+    )
+    
+    plot_veg_metric(
+      data = veg_stats(),
+      grand_data = veg_grand(),
+      metric = input$ts_metric,
+      y_label = metric_labels[input$ts_metric],
+      title = paste(metric_labels[input$ts_metric], "Over Time")
     )
   })
   
@@ -401,8 +813,47 @@ server <- function(input, output, session) {
     filename = function() paste0("species_", Sys.Date(), ".csv"),
     content = function(file) write.csv(species_summary(), file, row.names = FALSE)
   )
+  
+  # Download plot as PNG
+  output$download_plot <- downloadHandler(
+    filename = function() {
+      metric_names <- c(
+        "vmmi" = "VMMI",
+        "mean.coc" = "MeanCOC",
+        "inv.cov" = "InvasiveCover",
+        "bryo.cov" = "BryophyteCover",
+        "strtol.cov" = "StressToleranceCover"
+      )
+      paste0(metric_names[input$ts_metric], "_", Sys.Date(), ".png")
+    },
+    content = function(file) {
+      # Create the plot
+      metric_labels <- c(
+        "vmmi" = "VMMI",
+        "mean.coc" = "Mean COC",
+        "inv.cov" = "Invasive Cover (%)",
+        "bryo.cov" = "Bryophyte Cover (%)",
+        "strtol.cov" = "Stress Tolerance Cover (%)"
+      )
+      
+      p <- plot_veg_metric(
+        data = veg_stats(),
+        grand_data = veg_grand(),
+        metric = input$ts_metric,
+        y_label = metric_labels[input$ts_metric],
+        title = paste(metric_labels[input$ts_metric], "Over Time")
+      )
+      
+      # Save as PNG with high resolution
+      ggsave(file, plot = p, device = "png", 
+             width = 10, height = 6, dpi = 300, units = "in")
+    }
+  )
+  
 }
+
 
 # Run app
 shinyApp(ui, server)
+
 
