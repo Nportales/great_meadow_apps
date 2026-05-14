@@ -221,29 +221,70 @@ create_picker_input <- function(id, label, choices, selected, multiple = TRUE, n
 # Time series plotting function for statistics
 plot_wl_metric <- function(data, grand_data, metric, y_label, title, sig_results = NULL) {
   
-  # enforce consistent ordering
+  # Filter grand_data to only include wetlands present in data
+  wetlands_in_data <- unique(as.character(data$wetland))
+  grand_data <- grand_data %>%
+    filter(wetland %in% wetlands_in_data)
+  
+  # Enforce consistent ordering - Great Meadow first
   data$wetland <- factor(data$wetland, 
                          levels = c("Great Meadow", "Gilmore Meadow"))
   grand_data$wetland <- factor(grand_data$wetland, 
                                levels = c("Great Meadow", "Gilmore Meadow"))
   
+  # Sort wetlands_in_data to ensure Great Meadow is first
+  wetlands_in_data <- sort(wetlands_in_data, decreasing = TRUE)  # This will put Great before Gilmore
+  
   avg_col   <- paste0(metric, "_avg")
   sd_col    <- paste0(metric, "_sd")
   grand_col <- paste0(metric, "_avg_grand")
   
-  # Create grand mean labels with values
-  gm_grand <- grand_data %>% filter(wetland == "Great Meadow") %>% pull(!!sym(grand_col))
-  gl_grand <- grand_data %>% filter(wetland == "Gilmore Meadow") %>% pull(!!sym(grand_col))
+  # Create grand mean labels with values - only for wetlands present
+  gm_grand <- if ("Great Meadow" %in% wetlands_in_data) {
+    grand_data %>% filter(wetland == "Great Meadow") %>% pull(!!sym(grand_col))
+  } else {
+    NULL
+  }
   
-  # Create a combined factor for the legend
+  gl_grand <- if ("Gilmore Meadow" %in% wetlands_in_data) {
+    grand_data %>% filter(wetland == "Gilmore Meadow") %>% pull(!!sym(grand_col))
+  } else {
+    NULL
+  }
+  
+  # Create a combined factor for the legend - only for present wetlands
+  # Ensure Great Meadow comes before Gilmore Meadow
+  grand_levels <- paste0(wetlands_in_data, " Grand Mean")
   grand_data <- grand_data %>%
     mutate(grand_label = factor(
       paste0(wetland, " Grand Mean"),
-      levels = c("Great Meadow Grand Mean", "Gilmore Meadow Grand Mean")
+      levels = grand_levels
     ))
   
-  ggplot(data, aes(x = year, y = .data[[avg_col]], color = wetland, shape = wetland, group = wetland)) +
+  # Build label vector dynamically - Great Meadow first
+  grand_labels <- c()
+  grand_label_names <- c()
+  if (!is.null(gm_grand)) {
+    grand_labels <- c(grand_labels, sprintf("Great Meadow (%.2f)", gm_grand))
+    grand_label_names <- c(grand_label_names, "Great Meadow Grand Mean")
+  }
+  if (!is.null(gl_grand)) {
+    grand_labels <- c(grand_labels, sprintf("Gilmore Meadow (%.2f)", gl_grand))
+    grand_label_names <- c(grand_label_names, "Gilmore Meadow Grand Mean")
+  }
+  names(grand_labels) <- grand_label_names
+  
+  # Create color values for grand means
+  grand_colors <- setNames(
+    c("black", "grey67")[match(wetlands_in_data, c("Great Meadow", "Gilmore Meadow"))],
+    grand_levels
+  )
+  
+  p <- ggplot(data, aes(x = year, y = .data[[avg_col]],
+                        color = wetland, shape = wetland, group = wetland)) +
+    
     geom_line(linewidth = 1.2) +
+    
     geom_point(
       size = 6,
       position = position_jitter(width = 0.03, height = 0)
@@ -255,14 +296,14 @@ plot_wl_metric <- function(data, grand_data, metric, y_label, title, sig_results
       width = 0, alpha = 0.6
     ) +
     
-    # Grand mean lines with separate mapping
+    # Grand mean lines - use wetland for color mapping
     geom_hline(
       data = grand_data,
       aes(yintercept = .data[[grand_col]], 
           linetype = grand_label,
           color = wetland),
       linewidth = 1,
-      show.legend = TRUE,
+      show.legend = c(linetype = TRUE, color = FALSE),
       key_glyph = "path"
     ) +
     
@@ -273,32 +314,34 @@ plot_wl_metric <- function(data, grand_data, metric, y_label, title, sig_results
     scale_y_continuous(n.breaks = 8) +
     
     scale_color_manual(
-      name = "Wetland Yearly Mean",
+      name = "Wetland Annual Mean",
       values = c(
         "Great Meadow" = "black",
         "Gilmore Meadow" = "grey67"
       ),
-      breaks = c("Great Meadow", "Gilmore Meadow")
+      breaks = c("Great Meadow", "Gilmore Meadow"),  # Explicit order
+      drop = TRUE
     ) +
     
     scale_shape_manual(
-      name = "Wetland Yearly Mean",
+      name = "Wetland Annual Mean",
       values = c(
         "Great Meadow" = 16,
         "Gilmore Meadow" = 17
-      )
+      ),
+      breaks = c("Great Meadow", "Gilmore Meadow"),  # Explicit order
+      drop = TRUE
     ) +
     
     scale_linetype_manual(
       name = "Wetland Grand Mean",
-      values = c(
-        "Great Meadow Grand Mean" = "dashed",
-        "Gilmore Meadow Grand Mean" = "dashed"
+      values = setNames(
+        rep("dashed", length(grand_levels)),
+        grand_levels
       ),
-      labels = c(
-        "Great Meadow Grand Mean" = sprintf("Great Meadow (%.2f)", gm_grand),
-        "Gilmore Meadow Grand Mean" = sprintf("Gilmore Meadow (%.2f)", gl_grand)
-      )
+      labels = grand_labels,
+      breaks = grand_levels,
+      drop = TRUE
     ) +
     
     labs(
@@ -316,27 +359,31 @@ plot_wl_metric <- function(data, grand_data, metric, y_label, title, sig_results
       axis.title.x = element_text(size = 14),
       axis.title.y = element_text(size = 14),
       legend.position = "right",
+      legend.justification = "left",
+      legend.box.margin = margin(0, 0, 0, 5),
+      legend.margin = margin(0, 0, 0, 0),
       legend.title = element_text(size = 12, face = "bold"),
       legend.text = element_text(size = 11),
       legend.key.size = unit(1.2, "cm"),
       legend.spacing.y = unit(0.2, "cm"),
       legend.box = "vertical",
-      plot.margin = margin(10, 10, 10, 10)
+      plot.margin = margin(10, 5, 10, 10)
     ) +
     
     guides(
       color = guide_legend(order = 1, override.aes = list(linewidth = 1.2)),
       shape = guide_legend(order = 1),
       linetype = guide_legend(
-        order = 2, 
+        order = 2,
         override.aes = list(
-          color = c("black", "grey67"),
+          color = grand_colors,
           linewidth = 1
         )
       )
     )
+  
+  return(p)
 }
-
 
 #----------------#
 ####    UI    ####
@@ -456,7 +503,7 @@ ui <- page_fluid(
       layout_sidebar(
         sidebar = sidebar(
           class = "sidebar-custom", width = 300,
-          h4("Time Series Controls", style = "color: #1B365D; margin-bottom: 20px;"),
+          h4("Plot Controls", style = "color: #1B365D; margin-bottom: 20px;"),
           
           selectInput("selected_metric", 
                       label = div(icon("chart-line"), "Select Statistic:"),
@@ -474,9 +521,16 @@ ui <- page_fluid(
                       ),
                       selected = "WL_mean"),
           
+          checkboxGroupInput(
+            "ts_wetland",
+            div("Select Wetland(s):"),
+            choices = c("Great Meadow", "Gilmore Meadow"),
+            selected = c("Great Meadow", "Gilmore Meadow")
+          ),
+          
           br(),
           div(style = "padding: 10px; background-color: #e8f4f8; border-radius: 8px; border-left: 4px solid #3498db;",
-              p(icon("info-circle"), "Plots show the yearly averages of each statistic across all sites within each wetland over time. Dashed lines represent the grand mean for each wetland (average across all years).", 
+              p(icon("info-circle"), "Lines show annual means ± SD across sites within each wetland (Gilmore Meadow has one site and therefore no SD). Dashed lines represent grand means across all years.", 
                 style = "margin: 0; font-size: 0.9rem; color: #2c3e50;")),
           
           div(style = "margin-top: 15px; text-align: center;",
@@ -491,7 +545,7 @@ ui <- page_fluid(
         
         card(
           full_screen = TRUE,
-          card_header(class = "bg-primary text-white", "Water Level Statistic Time Series"),
+          card_header(class = "bg-primary text-white", "Water Level Statistics Over Time"),
           uiOutput("timeseries_significance_info"),
           plotOutput("stat_timeseries", height = "600px")
         )
@@ -678,13 +732,21 @@ server <- function(input, output, session) {
     length(selected_wetlands) >= 2 && all(c("Great Meadow", "Gilmore Meadow") %in% selected_wetlands)
   })
   
-  # Significance results for time series plot
+  # Significance results for time series plot - only when both wetlands selected
   timeseries_significance <- reactive({
-    # Use all sites and all years in wl_stats for time series significance
-    all_sites <- unique(wl_stats$site)
-    all_years <- unique(wl_stats$year)
+    req(input$ts_wetland)
     
-    calculate_wetland_significance(wl_stats, all_years, all_sites, alpha = 0.05)
+    # Only run significance test if both wetlands are selected
+    if (length(input$ts_wetland) == 2 && 
+        all(c("Great Meadow", "Gilmore Meadow") %in% input$ts_wetland)) {
+      
+      all_sites <- unique(wl_stats$site)
+      all_years <- unique(wl_stats$year)
+      
+      calculate_wetland_significance(wl_stats, all_years, all_sites, alpha = 0.05)
+    } else {
+      NULL  # Return NULL if both wetlands aren't selected
+    }
   })
   
   # Filtered statistics data
@@ -881,7 +943,14 @@ server <- function(input, output, session) {
   
   # Render time series plot based on selected metric
   output$stat_timeseries <- renderPlot({
-    req(input$selected_metric)
+    req(input$selected_metric, input$ts_wetland)
+    
+    # Filter data by selected wetlands
+    filtered_wl_test <- wl_test %>%
+      filter(wetland %in% input$ts_wetland)
+    
+    filtered_grand_means <- grand_means %>%
+      filter(wetland %in% input$ts_wetland)
     
     metric <- input$selected_metric
     
@@ -901,8 +970,8 @@ server <- function(input, output, session) {
     metric_label <- metric_labels[metric]
     
     plot_wl_metric(
-      wl_test,
-      grand_means,
+      filtered_wl_test,
+      filtered_grand_means,
       metric = metric,
       y_label = metric_label,
       title = paste(metric_label, "Over Time"),
@@ -912,6 +981,14 @@ server <- function(input, output, session) {
   
   # Render significance info for time series
   output$timeseries_significance_info <- renderUI({
+    req(input$ts_wetland)
+    
+    # Only show significance info if both wetlands are selected
+    if (length(input$ts_wetland) < 2 || 
+        !all(c("Great Meadow", "Gilmore Meadow") %in% input$ts_wetland)) {
+      return(NULL)  # Don't show anything if both wetlands aren't selected
+    }
+    
     sig_results <- timeseries_significance()
     
     if (!is.null(sig_results)) {
@@ -927,9 +1004,9 @@ server <- function(input, output, session) {
               style = 'background-color:#fff3cd; padding:5px; border-left:4px solid #856404; border-radius:4px;',
               HTML(sprintf(
                 "<strong style='color:#856404; font-size:13px;'>%s Statistically Significant (p = %.4f)</strong><br>
-          <span style='color:#666666; font-size:13px; font-style:italic;'>
-          Significance testing compares grand means between Great Meadow and Gilmore Meadow wetlands.
-          </span>",
+        <span style='color:#666666; font-size:13px; font-style:italic;'>
+        Significance testing compares grand means between Great Meadow and Gilmore Meadow wetlands.
+        </span>",
                 as.character(icon("asterisk")),
                 sig_row$p_value
               ))
@@ -943,9 +1020,9 @@ server <- function(input, output, session) {
               style = 'background-color:#f5f5f5; padding:5px; border-left:4px solid #6c757d; border-radius:4px;',
               HTML(sprintf(
                 "<strong style='color:#495057; font-size:13px;'>Not Statistically Significant (p = %.4f)</strong><br>
-          <span style='color:#666666; font-size:13px; font-style:italic;'>
-          Significance testing compares grand means between Great Meadow and Gilmore Meadow wetlands.
-          </span>",
+        <span style='color:#666666; font-size:13px; font-style:italic;'>
+        Significance testing compares grand means between Great Meadow and Gilmore Meadow wetlands.
+        </span>",
                 sig_row$p_value
               ))
             )
@@ -993,9 +1070,17 @@ server <- function(input, output, session) {
   output$download_timeseries <- downloadHandler(
     filename = function() {
       metric_name <- gsub(" ", "_", gsub("[()]", "", input$selected_metric))
-      paste0("timeseries_", metric_name, "_", Sys.Date(), ".png")
+      wetlands <- paste(input$ts_wetland, collapse = "_")
+      paste0("timeseries_", metric_name, "_", wetlands, "_", Sys.Date(), ".png")
     },
     content = function(file) {
+      # Filter data by selected wetlands
+      filtered_wl_test <- wl_test %>%
+        filter(wetland %in% input$ts_wetland)
+      
+      filtered_grand_means <- grand_means %>%
+        filter(wetland %in% input$ts_wetland)
+      
       # Create proper label mapping
       metric_labels <- c(
         "WL_mean" = "Mean Water Level (cm)",
@@ -1012,11 +1097,16 @@ server <- function(input, output, session) {
       
       metric_label <- metric_labels[input$selected_metric]
       
-      # Get significance results for the download
-      sig_results <- isolate(timeseries_significance())
+      # Get significance results only if both wetlands are selected
+      sig_results <- if (length(input$ts_wetland) == 2 && 
+                         all(c("Great Meadow", "Gilmore Meadow") %in% input$ts_wetland)) {
+        isolate(timeseries_significance())
+      } else {
+        NULL
+      }
       
       # Create plot with significance
-      p <- plot_wl_metric(wl_test, grand_means, input$selected_metric, 
+      p <- plot_wl_metric(filtered_wl_test, filtered_grand_means, input$selected_metric, 
                           metric_label, paste(metric_label, "Over Time"),
                           sig_results = sig_results)
       
