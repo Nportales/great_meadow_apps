@@ -9,6 +9,7 @@ library(tidyverse)
 library(shinyWidgets)
 library(DT)
 library(bslib)
+library(patchwork)
 
 #-------------------------------------------#
 ####        Read & Prepare Data          ####
@@ -71,7 +72,7 @@ create_picker_input <- function(id, label, choices, selected,
 }
 
 # Time series plotting function
-plot_veg_metric <- function(data, grand_data, metric, y_label, title) {
+plot_veg_metric <- function(data, grand_data, metric, y_label, title, show_labels = FALSE) {
   
   # Sort wetlands_in_data to ensure Great Meadow is first
   wetlands_in_data <- unique(as.character(data$wetland))
@@ -87,7 +88,7 @@ plot_veg_metric <- function(data, grand_data, metric, y_label, title) {
     mutate(wetland = factor(wetland, levels = c("Great Meadow", "Gilmore Meadow")))
   
   avg_col   <- paste0(metric, "_avg")
-  sd_col    <- paste0(metric, "_sd")
+  se_col    <- paste0(metric, "_se")
   grand_col <- paste0(metric, "_avg_grand")
   
   # Create grand mean labels with values - only for wetlands present
@@ -138,14 +139,33 @@ plot_veg_metric <- function(data, grand_data, metric, y_label, title) {
     
     geom_point(
       size = 6,
-      position = position_jitter(width = 0.03, height = 0)
+      position = position_jitter(width = 0.05, height = 0)
     ) +
     
     geom_errorbar(
-      aes(ymin = .data[[avg_col]] - .data[[sd_col]],
-          ymax = .data[[avg_col]] + .data[[sd_col]]),
-      width = 0, alpha = 0.6
+      aes(ymin = .data[[avg_col]] - .data[[se_col]],
+          ymax = .data[[avg_col]] + .data[[se_col]],
+          alpha = wetland),
+      width = 0
     ) +
+    
+    # ADD SITE COUNT LABELS if requested
+    {if (show_labels && "n_sites" %in% names(data)) 
+      geom_text(
+        aes(label = n_sites,
+            y = .data[[avg_col]] + pmax(.data[[se_col]], 0, na.rm = TRUE),
+            # Adjust vjust based on SE value ranges
+            vjust = case_when(
+              is.na(.data[[se_col]]) | .data[[se_col]] == 0 ~ -1.5, # no SE
+              .data[[se_col]] < 1 ~ -1.2, # small SE
+              TRUE ~ -0.5 # large SE
+            )),
+        size = 3.8,
+        fontface = "bold",
+        color = "grey25",
+        show.legend = FALSE
+      )
+    } +
     
     # Grand mean lines - use wetland for color mapping
     geom_hline(
@@ -195,6 +215,14 @@ plot_veg_metric <- function(data, grand_data, metric, y_label, title) {
       drop = TRUE
     ) +
     
+    scale_alpha_manual(
+      values = c(
+        "Great Meadow" = 0.85,
+        "Gilmore Meadow" = 1
+      ),
+      guide = "none"
+    ) +
+    
     labs(
       title = title,
       x = "Year",
@@ -218,7 +246,12 @@ plot_veg_metric <- function(data, grand_data, metric, y_label, title) {
       legend.key.size = unit(1.2, "cm"),
       legend.spacing.y = unit(0.2, "cm"),
       legend.box = "vertical",
-      plot.margin = margin(10, 5, 10, 10)
+      plot.margin = margin(10, 5, 10, 10),
+      panel.grid.major = element_blank(),
+      panel.grid.minor = element_blank(),
+      axis.line = element_line(color = "black", linewidth = 0.5),
+      axis.ticks = element_line(color = "black", linewidth = 0.5),
+      axis.ticks.length = unit(0.2, "cm")
     ) +
     
     guides(
@@ -293,43 +326,166 @@ ui <- page_fluid(
   
   tags$head(
     tags$style(HTML("
-      .content-section {
-        margin: 20px 0; padding: 25px; border-radius: 15px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-        border: 2px solid #1B365D;
-      }
-      .sidebar-custom {
-        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-        border-radius: 10px; padding: 20px;
-      }
-      .main-title {
-        background: linear-gradient(135deg, #2E7D32 0%, #66BB6A 100%);
-        color: white; padding: 30px;
-        text-align: center;
-        border-radius: 0 0 20px 20px;
-      }
-      .dataTables_wrapper { font-size: 0.85rem !important; }
-    "))
+    .content-section {
+      margin: 20px 0; padding: 25px; border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+      border: 2px solid #2E7D32;
+    }
+    .sidebar-custom {
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      border-radius: 10px; padding: 20px;
+    }
+    .main-title {
+      background: linear-gradient(135deg, #2E7D32 0%, #66BB6A 100%);
+      color: white; 
+      padding: 30px; 
+      margin: -15px -15px 0 -15px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-radius: 0;  
+    }
+    .dataTables_wrapper { font-size: 0.85rem !important; }
+    
+    /* Navigation bar styles */
+    .nav-bar {
+      background: #e9ecef;
+      padding: 8px 0;
+      margin: 0 -15px 30px -15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border: 1px solid #dee2e6;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .nav-bar a {
+      color: #2E7D32;
+      text-decoration: none;
+      padding: 5px 18px;
+      margin: 0 5px;
+      border-radius: 4px;
+      transition: all 0.3s ease;
+      font-weight: 600;
+      font-size: 0.9rem;
+      border: 1px solid transparent;
+    }
+    .nav-bar a:hover {
+      background-color: #2E7D32;  /* Green background on hover */
+      color: white;  /* White text on hover */
+      border: 1px solid #2E7D32;
+      transform: translateY(-1px);  /* Slight lift effect */
+      box-shadow: 0 2px 4px rgba(46, 125, 50, 0.2);
+    }
+    .nav-bar-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .brush-info-section {
+      background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+      border-radius: 12px; padding: 20px; margin: 20px 0;
+      border: 1px solid #66BB6A;
+    }
+  "))
   ),
   
-  #Main title
+  # Main title
   div(class = "main-title",
       h1("Wetland Vegetation Dashboard",
          style = "margin: 0; font-size: 2rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3)")
+  ),
+  
+  # Navigation bar
+  div(class = "nav-bar",
+      div(class = "nav-bar-container",
+          tags$a(href = "#plots", "Metric Plots"),
+          tags$a(href = "#table", "Metric Table"),
+          tags$a(href = "#list", "Species Lists"),
+          tags$a(href = "#about", "About")
+      )
+  ),
+  
+  #--------------------------------#
+  ####   Time Series Section    ####
+  #--------------------------------#
+  
+  div(id = "plots", class = "content-section",
+      layout_sidebar(
+        
+        sidebar = sidebar(
+          class = "sidebar-custom", width = 300,
+          
+          h4("Plot Controls", style = "color: #2E7D32;"),
+          
+          create_picker_input(
+            "ts_metric",
+            "Select Metric(s):",
+            choices = c(
+              "VMMI" = "vmmi",
+              "Mean COC" = "mean.coc",
+              "Invasive Cover" = "inv.cov",
+              "Bryophyte Cover" = "bryo.cov",
+              "Stress Tolerance Cover" = "strtol.cov"
+            ),
+            selected = "vmmi",
+            multiple = TRUE,
+            none_text = "Choose metrics"
+          ),
+          
+          checkboxGroupInput(
+            "ts_wetland",
+            div("Select Wetland(s):"),
+            choices = c("Great Meadow", "Gilmore Meadow"),
+            selected = c("Great Meadow", "Gilmore Meadow")
+          ),
+          
+          checkboxInput(
+            "ts_show_labels",
+            "Show number of sites surveyed each year",
+            value = FALSE
+          ),
+          
+          tags$small(
+            style = "color: #6c757d; display: block; margin-top: -8px; margin-bottom: 10px; font-style: italic;",
+            "*Note: Vegetation data was collected inconsistently over time. Read more in the About section."
+          ),
+          
+          div(style = "padding: 10px; background-color: #e8f5e9; border-radius: 8px; border-left: 4px solid #2E7D32;",
+              p(icon("info-circle"), "Points show annual means ± SE across sites within each wetland. Dashed lines represent grand means across all years.", 
+                style = "margin: 0; font-size: 0.9rem; color: #1b5e20;")),
+          
+          br(),
+          downloadButton("download_plot", "Download Plot",
+                         class = "btn-primary btn-sm"),
+          
+          div(style = "margin-top: 15px; text-align: center;",
+              tags$a(href = "#about",
+                     class = "btn btn-primary btn-sm", icon("info-circle"),
+                     "About"))
+        ),
+        
+        card(
+          full_screen = TRUE,
+          card_header(class = "bg-primary text-white",
+                      "Vegetation Metrics Over Time"),
+          div(style = "padding: 20px;",
+              uiOutput("ts_plots", height = "600px"))
+        )
+      )
   ),
   
   #--------------------------------#
   ####       VMMI Section       ####
   #--------------------------------#
   
-  div(class = "content-section",
+  div(id = "table", class = "content-section",
       layout_sidebar(
         
         sidebar = sidebar(
           class = "sidebar-custom", width = 300,
           
-          h4("VMMI Controls", style = "color: #2E7D32;"),
+          h4("Table Controls", style = "color: #2E7D32;"),
           
           create_picker_input("vmmi_site", "Select Site(s):",
                               choices = site_lookup,
@@ -372,73 +528,16 @@ ui <- page_fluid(
   ),
   
   #--------------------------------#
-  ####   Time Series Section    ####
-  #--------------------------------#
-  
-  div(class = "content-section",
-      layout_sidebar(
-        
-        sidebar = sidebar(
-          class = "sidebar-custom", width = 300,
-          
-          h4("Plot Controls", style = "color: #2E7D32;"),
-          
-          selectInput(
-            "ts_metric",
-            div(icon("chart-line"), "Select Metric:"),
-            choices = c(
-              "VMMI" = "vmmi",
-              "Mean COC" = "mean.coc",
-              "Invasive Cover" = "inv.cov",
-              "Bryophyte Cover" = "bryo.cov",
-              "Stress Tolerance Cover" = "strtol.cov"
-            ),
-            selected = "vmmi"
-          ),
-          
-          checkboxGroupInput(
-            "ts_wetland",
-            div("Select Wetland(s):"),
-            choices = c("Great Meadow", "Gilmore Meadow"),
-            selected = c("Great Meadow", "Gilmore Meadow")
-          ),
-          
-          br(),
-          div(style = "padding: 10px; background-color: #e8f5e9; border-radius: 8px; border-left: 4px solid #2E7D32;",
-              p(icon("info-circle"), "Lines show annual means ± SD across sites within each wetland. Dashed lines represent grand means across all years.", 
-                style = "margin: 0; font-size: 0.9rem; color: #1b5e20;")),
-          
-          br(),
-          downloadButton("download_plot", "Download Plot",
-                         class = "btn-primary btn-sm"),
-          
-          div(style = "margin-top: 15px; text-align: center;",
-              tags$a(href = "#about",
-                     class = "btn btn-primary btn-sm", icon("info-circle"),
-                     "About"))
-        ),
-        
-        card(
-          full_screen = TRUE,
-          card_header(class = "bg-primary text-white",
-                      "VMMI Metrics Over Time"),
-          div(style = "padding: 20px;",
-              plotOutput("ts_plot", height = "500px"))
-        )
-      )
-  ),
-  
-  #--------------------------------#
   ####   Species List Section   ####
   #--------------------------------#
   
-  div(class = "content-section",
+  div(id = "list", class = "content-section",
       layout_sidebar(
         
         sidebar = sidebar(
           class = "sidebar-custom", width = 300,
           
-          h4("Species Controls", style = "color: #2E7D32;"),
+          h4("Table Controls", style = "color: #2E7D32;"),
           
           create_picker_input("sp_site", "Select Site(s):",
                               choices = site_lookup,
@@ -665,7 +764,6 @@ server <- function(input, output, session) {
   veg_stats <- reactive({
     req(input$ts_wetland)
     
-    # Add wetland column to vmmi_data based on site names
     vmmi_with_wetland <- vmmi_data %>%
       left_join(monitoring_sites, by = "site.name") %>%
       mutate(
@@ -683,7 +781,7 @@ server <- function(input, output, session) {
         across(
           c(vmmi, mean.coc, inv.cov, bryo.cov, strtol.cov),
           list(avg = ~mean(.x, na.rm = TRUE),
-               sd  = ~sd(.x, na.rm = TRUE)),
+               se  = ~sd(.x, na.rm = TRUE) / sqrt(n())),
           .names = "{.col}_{.fn}"
         ),
         n_sites = n_distinct(site.name),
@@ -708,7 +806,8 @@ server <- function(input, output, session) {
   })
   
   # Render time series plot
-  output$ts_plot <- renderPlot({
+  # In server (around line 672), replace the entire output$ts_plot section with:
+  output$ts_plots <- renderUI({
     req(input$ts_metric, input$ts_wetland)
     
     metric_labels <- c(
@@ -719,13 +818,29 @@ server <- function(input, output, session) {
       "strtol.cov" = "Stress Tolerance Cover (%)"
     )
     
-    plot_veg_metric(
-      data = veg_stats(),
-      grand_data = veg_grand(),
-      metric = input$ts_metric,
-      y_label = metric_labels[input$ts_metric],
-      title = paste(metric_labels[input$ts_metric], "Over Time")
-    )
+    # Create a plot for each selected metric
+    plot_outputs <- lapply(seq_along(input$ts_metric), function(i) {
+      metric <- input$ts_metric[i]
+      output_id <- paste0("plot_", metric)
+      
+      # Generate the plot
+      output[[output_id]] <- renderPlot({
+        plot_veg_metric(
+          data = veg_stats(),
+          grand_data = veg_grand(),
+          metric = metric,
+          y_label = metric_labels[metric],
+          title = paste(metric_labels[metric], "Over Time"),
+          show_labels = input$ts_show_labels
+        )
+      })
+      
+      # Return the plot output UI
+      plotOutput(output_id, height = "600px")
+    })
+    
+    # Stack all plots vertically
+    tagList(plot_outputs)
   })
   
   #-----------------------------#
@@ -817,17 +932,9 @@ server <- function(input, output, session) {
   # Download plot as PNG
   output$download_plot <- downloadHandler(
     filename = function() {
-      metric_names <- c(
-        "vmmi" = "VMMI",
-        "mean.coc" = "MeanCOC",
-        "inv.cov" = "InvasiveCover",
-        "bryo.cov" = "BryophyteCover",
-        "strtol.cov" = "StressToleranceCover"
-      )
-      paste0(metric_names[input$ts_metric], "_", Sys.Date(), ".png")
+      paste0("VegMetrics_", Sys.Date(), ".png")
     },
     content = function(file) {
-      # Create the plot
       metric_labels <- c(
         "vmmi" = "VMMI",
         "mean.coc" = "Mean COC",
@@ -836,17 +943,24 @@ server <- function(input, output, session) {
         "strtol.cov" = "Stress Tolerance Cover (%)"
       )
       
-      p <- plot_veg_metric(
-        data = veg_stats(),
-        grand_data = veg_grand(),
-        metric = input$ts_metric,
-        y_label = metric_labels[input$ts_metric],
-        title = paste(metric_labels[input$ts_metric], "Over Time")
-      )
+      # Create all selected plots
+      plots <- lapply(input$ts_metric, function(metric) {
+        plot_veg_metric(
+          data = veg_stats(),
+          grand_data = veg_grand(),
+          metric = metric,
+          y_label = metric_labels[metric],
+          title = paste(metric_labels[metric], "Over Time"),
+          show_labels = input$ts_show_labels
+        )
+      })
       
-      # Save as PNG with high resolution
-      ggsave(file, plot = p, device = "png", 
-             width = 10, height = 6, dpi = 300, units = "in")
+      # Stack plots vertically using patchwork
+      combined_plot <- wrap_plots(plots, ncol = 1)
+      
+      # Save with height adjusted for number of plots
+      ggsave(file, plot = combined_plot, device = "png", 
+             width = 10, height = 7 * length(input$ts_metric), dpi = 300, units = "in")
     }
   )
   
@@ -855,5 +969,6 @@ server <- function(input, output, session) {
 
 # Run app
 shinyApp(ui, server)
+
 
 
