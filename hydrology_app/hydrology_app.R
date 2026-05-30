@@ -412,7 +412,7 @@ ui <- page_fluid(
     }
     .sidebar-custom {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      border-radius: 10px; padding: 20px;
+      border-radius: 10px; padding: 0px 20px 20px 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid #dee2e6;
     }
     .main-title {
@@ -498,18 +498,18 @@ ui <- page_fluid(
       layout_sidebar(
         sidebar = sidebar(
           class = "sidebar-custom", width = 300,
-          h4("Hydrograph Controls", style = "color: #1B365D; margin-bottom: 20px;"),
+          h4("Hydrograph Controls", style = "color: #1B365D; margin-bottom: 12px;"),
           
           create_picker_input(
             "selected_sites", "Select Site(s):", 
             list(
-              "Individual Sites" = sort(unique(all_data$site)),
               "Wetland Averages" = c(
                 "Gilmore Meadow (Average)",
                 "Great Meadow (Average)"
-              )
+              ),
+              "Individual Sites" = sort(unique(all_data$site))
             ),
-            "Great Meadow 1",
+            c("Gilmore Meadow (Average)", "Great Meadow (Average)"),
             none_text = "Choose site(s)"
           ),
           
@@ -518,20 +518,19 @@ ui <- page_fluid(
                               selected = max(all_data$year),
                               none_text = "Choose year(s)"),
           
-          br(),
           div(style = "padding: 10px; background-color: #e8f4f8; border-radius: 8px; border-left: 4px solid #3498db;",
               p(icon("info-circle"), " Use the brush tool (+) by clicking and dragging with your cursor to select data on the hydrograph and view below.", 
-                style = "margin: 0; font-size: 0.9rem; color: #2c3e50;")),
+                style = "margin: 0; font-size: 13px; color: #2c3e50;")),
           
-          div(style = "margin-top: 10px; text-align: center;",
+          div(style = "margin-top: 15px; text-align: center;",
               downloadButton("download_plot", "Download Hydrograph", 
                              class = "btn-primary btn-sm", icon = icon("image"))),
           
-          div(style = "margin-top: 15px; text-align: center;",
+          div(style = "margin-top: 5px; text-align: center;",
               downloadButton("download_brush", "Download Selected Data", 
                              class = "btn-primary btn-sm", icon = icon("download"))),
           
-          div(style = "margin-top: 15px; text-align: center;",
+          div(style = "margin-top: 5px; text-align: center;",
               tags$a(href = "#about",
                      class = "btn btn-primary btn-sm", icon("info-circle"),
                      "About")),
@@ -562,7 +561,7 @@ ui <- page_fluid(
       layout_sidebar(
         sidebar = sidebar(
           class = "sidebar-custom", width = 300,
-          h4("Plot Controls", style = "color: #1B365D; margin-bottom: 20px;"),
+          h4("Plot Controls", style = "color: #1B365D; margin-bottom: 12px;"),
           
           pickerInput("selected_metric", 
                       label = div(icon("chart-line"), "Select Statistic(s):"),
@@ -589,23 +588,26 @@ ui <- page_fluid(
             selected = c("Great Meadow", "Gilmore Meadow")
           ),
           
-          conditionalPanel(
-            condition = "input.ts_wetland.length == 2",
-            div(style = "padding: 10px; background-color: #fff3cd; border-radius: 8px; border-left: 4px solid #856404; margin-top: 10px;",
-                p(HTML(paste0(as.character(icon("asterisk")), " <strong>Significance Testing:</strong><br>",
-                              "Compares grand means between Great Meadow and Gilmore Meadow wetlands. Significant differences (p < 0.05) are highlighted.")), 
-                  style = "margin: 0; font-size: 0.9rem; color: #856404;"))
-          ),
-          
           div(style = "padding: 10px; background-color: #e8f4f8; border-radius: 8px; border-left: 4px solid #3498db;",
               p(icon("info-circle"), "Points show annual means ± SE across sites within each wetland (Gilmore Meadow has one site and therefore no SE). Dashed lines represent grand means across all years.", 
-                style = "margin: 0; font-size: 0.9rem; color: #2c3e50;")),
+                style = "margin: 0; font-size: 13px; color: #2c3e50;")),
+          
+          conditionalPanel(
+            condition = "input.ts_wetland.length == 2",
+            div(style = "background-color: #f9f9f9; padding: 10px; border-left: 4px solid #1B365D; margin-top: 10px; border-radius: 4px; font-size: 13px;",
+                HTML(paste0(
+                  "<strong>Significance testing:</strong><br>",
+                  "• Compares grand means of each statistic between wetlands. <span style='background-color: #fff3cd; padding: 2px 4px; border-radius: 3px; color: #856404; font-weight: bold;'>*Statistically significant</span> differences (p < 0.05) between wetlands are highlighted.<br>",
+                  "• Both wetlands must be selected otherwise results display without significance testing."
+                ))
+            )
+          ),
           
           div(style = "margin-top: 15px; text-align: center;",
               downloadButton("download_timeseries", "Download Plot", 
                              class = "btn-primary btn-sm", icon = icon("download"))),
           
-          div(style = "margin-top: 15px; text-align: center;",
+          div(style = "margin-top: 5px; text-align: center;",
               tags$a(href = "#about",
                      class = "btn btn-primary btn-sm", icon("info-circle"),
                      "About"))
@@ -627,7 +629,7 @@ ui <- page_fluid(
       layout_sidebar(
         sidebar = sidebar(
           class = "sidebar-custom", width = 300,
-          h4("Table Controls", style = "color: #1B365D; margin-bottom: 20px;"),
+          h4("Table Controls", style = "color: #1B365D; margin-bottom: 12px;"),
           
           create_picker_input("stats_site", "Select Site(s):", 
                               unique(wl_stats$site), 
@@ -639,19 +641,29 @@ ui <- page_fluid(
                               selected = tail(sort(unique(wl_stats$year)), 4),
                               none_text = "Choose year(s)"),
           
-          radioButtons("time_summary", "Summarize Water Level Statistics By:",
+          radioButtons("time_summary", "Summarize Statistics By:",
                        choices = c("Site per Year" = "year",
                                    "Site Averaged Across Years" = "multi",
                                    "Wetland per Year" = "wetland_year",
                                    "Wetland Averaged Across Years" = "all_sites"),
                        selected = "year"),
           
-          br(),
+          conditionalPanel(
+            condition = "input.time_summary == 'all_sites'",
+            div(style = "background-color: #f9f9f9; padding: 10px; border-left: 4px solid #1B365D; margin-top: 10px; border-radius: 4px; font-size: 13px;",
+                HTML(paste0(
+                  "<strong>Significance testing:</strong><br>",
+                  "• Compares the grand means of each statistic between wetlands for all selected years and sites. <span style='background-color: #fff3cd; padding: 2px 4px; border-radius: 3px; color: #856404; font-weight: bold;'>*Statistically significant</span> differences (p < 0.05) between wetlands are highlighted.<br>",
+                  "• Both wetlands and at least four years of data must be selected otherwise results display without significance testing."
+                ))
+            )
+          ),
+          
           div(style = "margin-top: 15px; text-align: center;",
               downloadButton("download_stats", "Download Table", 
                              class = "btn-primary btn-sm", icon = icon("download"))),
           
-          div(style = "margin-top: 15px; text-align: center;",
+          div(style = "margin-top: 5px; text-align: center;",
               tags$a(href = "#about",
                      class = "btn btn-primary btn-sm", icon("info-circle"),
                      "About")),
@@ -904,13 +916,6 @@ server <- function(input, output, session) {
   output$significance_info <- renderUI({
     req(input$time_summary == "all_sites")
     
-    base_note <- HTML("
-  <div style='background-color:#f9f9f9; padding:10px; border-left:4px solid #1B365D; margin-bottom:10px; font-size:13px;'>
-    <strong>Note:</strong><br>
-    • For comparison with significance testing, both Great Meadow and Gilmore Meadow and at least four years of data must be selected. Otherwise, results display without significance testing.<br>
-    • Significance testing compares the grand means of each statistic between wetlands for all selected years and sites.
-  </div>")
-    
     if (show_significance_info()) {
       sig_results <- significance_results()
       
@@ -933,42 +938,38 @@ server <- function(input, output, session) {
             paste0("<li>", name, " (p = ", sprintf("%.3f", pval), ")</li>")
           })
           
-          return(tagList(
-            base_note,
+          return(
             div(
               style = "margin-bottom: 15px;",
               div(
                 style = 'background-color:#fff3cd; padding:8px 12px; border-left:4px solid #856404; border-radius:4px;',
                 HTML(sprintf(
-                  "<strong style='color:#856404; font-size:13px;'>%s Significance Testing</strong><br>
-              <span style='color:#333333; font-size:12px;'>Highlighted variables show significant differences (p < 0.05) between Great Meadow and Gilmore Meadow wetlands:</span><br>
-              <ul style='margin-top:8px; margin-bottom:5px; color:#333333; font-size:12px;'>%s</ul>",
+                  "<strong style='color:#856404; font-size:13px;'>%s Statistically Significant</strong><br>
+                <ul style='margin-top:8px; margin-bottom:5px; color:#333333; font-size:13px;'>%s</ul>",
                   as.character(icon("asterisk")),
                   paste(sig_list, collapse = "")
                 ))
               )
             )
-          ))
+          )
         } else {
           # No significant results found
-          return(tagList(
-            base_note,
+          return(
             div(
               style = "margin-bottom: 15px;",
               div(
                 style = 'background-color:#f5f5f5; padding:8px 12px; border-left:4px solid #6c757d; border-radius:4px;',
                 HTML(sprintf(
-                  "<strong style='color:#495057; font-size:13px;'>No Statistically Significant Differences</strong><br>
-              <span style='color:#666666; font-size:12px;'>No variables show significant differences (p < 0.05) between Great Meadow and Gilmore Meadow wetlands for the selected sites and years.</span>"
+                  "<strong style='color:#495057; font-size:13px;'>No Statistically Significant Statistics</strong>"
                 ))
               )
             )
-          ))
+          )
         }
       }
     }
     
-    return(base_note)
+    return(NULL)  # Return nothing if conditions aren't met
   })
   
   # Render water level stats table with significance highlighting
