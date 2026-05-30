@@ -334,7 +334,7 @@ ui <- page_fluid(
     }
     .sidebar-custom {
       background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-      border-radius: 10px; padding: 20px;
+      border-radius: 10px; padding: 0px 20px 20px 20px;
     }
     .main-title {
       background: linear-gradient(135deg, #2E7D32 0%, #66BB6A 100%);
@@ -399,8 +399,8 @@ ui <- page_fluid(
   # Navigation bar
   div(class = "nav-bar",
       div(class = "nav-bar-container",
-          tags$a(href = "#plots", "Metric Plots"),
-          tags$a(href = "#table", "Metric Table"),
+          tags$a(href = "#plots", "Metrics Plots"),
+          tags$a(href = "#table", "Metrics Table"),
           tags$a(href = "#list", "Species Lists"),
           tags$a(href = "#about", "About")
       )
@@ -455,11 +455,11 @@ ui <- page_fluid(
               p(icon("info-circle"), "Points show annual means ± SE across sites within each wetland. Dashed lines represent grand means across all years.", 
                 style = "margin: 0; font-size: 0.9rem; color: #1b5e20;")),
           
-          br(),
-          downloadButton("download_plot", "Download Plot",
-                         class = "btn-primary btn-sm"),
-          
           div(style = "margin-top: 15px; text-align: center;",
+              downloadButton("download_plot", "Download Plot",
+                             class = "btn-primary btn-sm", icon = icon("image"))),
+          
+          div(style = "margin-top: 5px; text-align: center;",
               tags$a(href = "#about",
                      class = "btn btn-primary btn-sm", icon("info-circle"),
                      "About"))
@@ -468,7 +468,7 @@ ui <- page_fluid(
         card(
           full_screen = TRUE,
           card_header(class = "bg-primary text-white",
-                      "Vegetation Metrics Over Time"),
+                      "Vegetation Metrics Plots"),
           div(style = "padding: 20px;",
               uiOutput("ts_plots", height = "600px"))
         )
@@ -496,22 +496,21 @@ ui <- page_fluid(
                               selected = NULL),
           tags$small(
             style = "color: #6c757d; display: block; margin-top: -8px; margin-bottom: 10px; font-style: italic;",
-            "*Note: Year options update based on selected site(s)."
+            "*Note: Year options update based on selected site(s). Wetland-level summaries select all sites and years by default."
           ),
           
-          radioButtons("vmmi_summary", "Summarize VMMI Statistics By:",
+          radioButtons("vmmi_summary", "Summarize Statistics By:",
                        choices = c("Site per Year" = "year",
                                    "Site Averaged Across Years" = "multi",
                                    "Wetland per Year" = "wetland_year",
                                    "Wetland Averaged Across Years" = "all_wetlands"),
                        selected = "year"),
           
-          br(),
-          
-          downloadButton("download_vmmi", "Download VMMI Table",
-                         class = "btn-primary btn-sm"),
-          
           div(style = "margin-top: 15px; text-align: center;",
+              downloadButton("download_vmmi", "Download Table",
+                             class = "btn-primary btn-sm", icon = icon("download"))),
+          
+          div(style = "margin-top: 5px; text-align: center;",
               tags$a(href = "#about",
                      class = "btn btn-primary btn-sm", icon("info-circle"),
                      "About")),
@@ -520,7 +519,7 @@ ui <- page_fluid(
         card(
           full_screen = TRUE,
           card_header(class = "bg-primary text-white",
-                      "Vegetation Multimetric Index (VMMI)"),
+                      "Vegetation Metrics Table"),
           div(style = "padding: 10px;",
               dataTableOutput("vmmi_table"))
         )
@@ -556,12 +555,11 @@ ui <- page_fluid(
           
           textInput("species_search", "Search species (name):", ""),
           
-          br(),
-          
-          downloadButton("download_species", "Download Species Table",
-                         class = "btn-primary btn-sm"),
-          
           div(style = "margin-top: 15px; text-align: center;",
+              downloadButton("download_species", "Download Table",
+                             class = "btn-primary btn-sm", icon = icon("download"))),
+          
+          div(style = "margin-top: 5px; text-align: center;",
               tags$a(href = "#about",
                      class = "btn btn-primary btn-sm", icon("info-circle"),
                      "About")),
@@ -612,6 +610,35 @@ server <- function(input, output, session) {
       selected = available_years
     )
   }, ignoreNULL = FALSE)
+  
+  # Update site and year selections based on summary level
+  observeEvent(input$vmmi_summary, {
+    if (input$vmmi_summary %in% c("wetland_year", "all_wetlands")) {
+      # For wetland-level summaries, select all sites and years
+      all_sites <- site_lookup
+      
+      # Get all available years for selected sites
+      available_years <- vmmi_data %>%
+        filter(site.name %in% all_sites) %>%
+        pull(year) %>%
+        unique() %>%
+        sort()
+      
+      # Update both inputs
+      updatePickerInput(
+        session,
+        "vmmi_site",
+        selected = all_sites
+      )
+      
+      updatePickerInput(
+        session,
+        "vmmi_year",
+        choices = available_years,
+        selected = available_years
+      )
+    }
+  }, ignoreInit = TRUE)
   
   # processing
   vmmi_filtered <- reactive({
@@ -697,6 +724,7 @@ server <- function(input, output, session) {
              df %>%
                group_by(wetland, year) %>%
                summarise(
+                 `Number of Sites` = n_distinct(site.name), 
                  across(c(mean.coc, inv.cov, bryo.cov, strtol.cov, vmmi),
                         ~ round(mean(.x, na.rm = TRUE), 2)),
                  
@@ -720,6 +748,7 @@ server <- function(input, output, session) {
                  VMMI = vmmi,
                  `VMMI Rating` = vmmi.rating
                ) %>%
+               select(Wetland, Year, `Number of Sites`, everything()) %>%
                arrange(Wetland, Year)
            },
            
@@ -729,6 +758,7 @@ server <- function(input, output, session) {
                group_by(wetland) %>%
                summarise(
                  Year = paste0(min(year), "–", max(year)),
+                 `Number of Sites` = n_distinct(site.name), 
                  across(c(mean.coc, inv.cov, bryo.cov, strtol.cov, vmmi),
                         ~ round(mean(.x, na.rm = TRUE), 2)),
                  
@@ -751,6 +781,7 @@ server <- function(input, output, session) {
                  VMMI = vmmi,
                  `VMMI Rating` = vmmi.rating
                ) %>%
+               select(Wetland, Year, `Number of Sites`, everything()) %>%
                arrange(Wetland)
            }
     )
@@ -888,13 +919,39 @@ server <- function(input, output, session) {
   species_summary <- reactive({
     species_filtered() %>%
       left_join(monitoring_sites, by = "site.name") %>%
+      # Extract just the site number from display name
+      mutate(
+        wetland = case_when(
+          grepl("Great Meadow", display.site.name) ~ "Great Meadow",
+          grepl("Gilmore Meadow", display.site.name) ~ "Gilmore Meadow",
+          TRUE ~ "Other"
+        ),
+        site_number = str_extract(display.site.name, "\\d+$")  # Extract trailing numbers
+      ) %>%
       group_by(latin.name, common.name, invasive) %>%
       summarise(
         `Latin Name` = first(latin.name),
         `Common Name` = first(common.name),
         Invasive = first(invasive),
         `Years Found` = paste(sort(unique(year)), collapse = ", "),
-        `Site(s)` = paste(unique(display.site.name), collapse = ", "),
+        
+        # Group sites by wetland
+        `Site(s)` = {
+          site_df <- data.frame(
+            wetland = wetland,
+            site_num = site_number
+          ) %>%
+            distinct() %>%
+            arrange(wetland, site_num)
+          
+          # Create grouped string
+          site_groups <- site_df %>%
+            group_by(wetland) %>%
+            summarise(sites = paste(site_num, collapse = ", "), .groups = "drop") %>%
+            mutate(formatted = paste0(wetland, " ", sites))
+          
+          paste(site_groups$formatted, collapse = "; ")
+        },
         .groups = "drop"
       ) %>%
       select(`Latin Name`, `Common Name`, Invasive, `Years Found`, `Site(s)`)
