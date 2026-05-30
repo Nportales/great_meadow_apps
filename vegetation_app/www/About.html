@@ -25,33 +25,36 @@ href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 201
   Click a site to view a pop-up with additional site information.</em>
 </p>
 
-<p><strong>Vegetation Multimetric Index (VMMI) statistics</strong></p>
+<p><strong>Vegetation Multimetric Index (VMMI) and Component Metrics</strong></p>
 
   <p>VMMI is a metric developed to assess the ecological health of vegetation and freshwater wetland conditions across the northeastern United States. The following four components are used to calculate VMMI:</p>
   <ul>
   <li>
-    Mean coefficient of conservatism (mean COC) of all species
+    <span style="text-decoration: underline;">Mean coefficient of conservatism (mean COC) of all species</span>
     <ul>
       <li>
         Coefficients of Conservatism (COC) are rating values given to plant species based on their tolerance to habitat disturbance and their association with ecologically intact natural areas. The scale ranges from 0 (non-native or species strongly associated with disturbed areas) to 10 (native species or species strongly associated with ecologically intact natural areas).
       </li>
     </ul>
   </li>
-  <li>Percent cover of invasive plant species
+  <li>
+    <span style="text-decoration: underline;">Percent cover of invasive plant species</span>
       <ul>
       <li>
         Invasive plants are non-native introduced plant species that harm their new environment. 
       </li>
     </ul>
   </li>
-  <li>Percent cover of bryophytes 
+  <li>
+    <span style="text-decoration: underline;">Percent cover of bryophytes</span>
       <ul>
       <li>
         Bryophytes are non-vascular plants such as mosses, liverworts, and hornworts that help with water retention, nutrient cycling, soil formation, erosion prevention, plant growth, and habitat creation for invertebrates and other animals.
       </li>
     </ul>
   </li>
-  <li>Percent cover of stress tolerant native plant species 
+  <li>
+    <span style="text-decoration: underline;">Percent cover of stress tolerant native plant species</span>
       <ul>
       <li>
         Stress tolerant native plant species are native plants that are adapted to challenging or disturbed environmental conditions.  
@@ -61,19 +64,43 @@ href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 201
 </ul>
 <p>VMMI values calculated from these factors range from 0 to 100 and are used to classify conditions at sites with a rating of Poor (VMMI < 41.48), Fair (VMMI between 41.48 and 60.95), or Good (VMMI > 60.95). Rating thresholds were derived from distributions in reference sites known to be minimally degraded.</p>
 
-<p><span style="text-decoration: underline;">Tables:</span></p>
-<ul>
-  <li>The values presented in the VMMI table in this dashboard can be summarized by site for each year of data collection or averaged across all years of data collection. Available years for selection update dynamically based on the selected site(s), as sampling years vary among some of the monitoring sites.</li>
-  <li>Tables can be downloaded as csv datasets.</li>
-</ul>
-
 <p><span style="text-decoration: underline;">Plots:</span></p>
 <ul>
-  <li>Plots show the annual means of each statistic across all sites within each wetland over time. Dashed lines represent the grand mean for each wetland (average across all years).</li>
-  <li>Each stat displays individually with data from both wetlands available for comparison.</li>
-  <li>Plots can be downloaded as png images.</li>
+  <li>Points show annual means ± standard error (SE) for each statistic across all monitoring sites within each wetland over time. Dashed lines represent the grand means for each wetland across all years.</li>
+  <li>Vegetation data were collected inconsistently across years, and the number of sites surveyed may differ annually (see control “Show number of sites surveyed each year”). These inconsistencies reflect differences in data sources and data collectors over time, as well as variation in survey frequency among site types. See <a
+href="https://irma.nps.gov/DataStore/Reference/Profile/2286693">Miller et al. 2021</a> and <a
+href="https://irma.nps.gov/DataStore/Reference/Profile/2230775">Mittelhauser 2016</a> for additional details</li>
+  <li>Please note there are no SE bars for years in which data were collected from only one monitoring site within a wetland.</li>
+  <li>Metrics can be displayed for individual wetlands or multiple wetlands simultaneously for comparison.</li>
+  <li>When multiple metrics are selected at once, separate plots for each metric will stack on top of each other.</li>
+  <li>Plots can be downloaded as .png images.</li>
 </ul>
 
+<p><span style="text-decoration: underline;">Tables:</span></p>
+<ul>
+<li>Tables show VMMI and component metric statistics. They can be summarized in four different ways:
+  <ul>
+    <li>
+      <span style="text-decoration: underline;">Site per Year</span>:
+      Each site shown for each year individually.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Site Averaged Across Years</span>:
+      Each site averaged across all selected years.
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Wetland per Year</span>:
+      Each wetland shown for each year (averaged across all sites selected within each wetland).
+    </li>
+    <li>
+      <span style="text-decoration: underline;">Wetland Averaged Across Years</span>:
+      Each wetland averaged across all years (averaged across all sites selected within each wetland).  
+    </li>
+  </ul>
+<li>Available years for selection update dynamically based on the selected site(s), as sampling years vary among some of the monitoring sites.</li>
+<li>Wetland-level summaries select all sites and years by default.</li>
+<li>Tables can be downloaded as .csv datasets.</li>
+</ul>
 
 
 <p><strong>Species Lists</strong></p>
@@ -86,9 +113,9 @@ href="https://itis.gov/">ITIS.gov</a> nomenclature. The invasive column indicate
 <p><span style="text-decoration: underline;">Tables:</span></p>
 <ul>
   <li>Species lists can be summarized by site and year. Available years for selection update dynamically based on the selected site(s), as sampling years vary among some of the monitoring sites.</li>
-  <li>Species names can be searched using the search bar in the panel controls.</li>
   <li>Species lists can be filtered to show only invasive species by selecting “Show invasives only”.</li>
-  <li>Tables can be downloaded as csv datasets. </li>
+  <li>Species names can be searched using the search bar in the table controls.</li>
+  <li>Tables can be downloaded as .csv datasets. </li>
 </ul>
 
 
