@@ -36,6 +36,52 @@ merged_data <- full_join(
 ) %>% 
   filter(!is.na(SCIENTIFIC.NAME))
 
+
+#-----------------------#
+####    Functions    ####
+#-----------------------#
+
+# Function to generate a palette for any number of categories
+generate_palette <- function(n_colors, palette_type = "qualitative") {
+  if(n_colors <= 8) {
+    rev(viridis(n_colors, option = "D", end = 0.85))
+  } else {
+    # Use multiple viridis family palettes - colorblind friendly
+    base_colors <- c(
+      rev(viridis(8, option = "D", end = 0.85)),  # Classic viridis (purple-teal)
+      rocket(6, begin = 0.4),
+      rev(cividis(6))
+    )
+    base_colors[1:min(n_colors, length(base_colors))]
+  }
+}
+
+# Function to assign colors ensuring "Other" gets a neutral color
+get_chart_colors <- function(categories, palette_type = "qualitative") {
+  n_cats <- length(categories)
+  colors <- generate_palette(n_cats, palette_type)
+  
+  # If there's an "Other" category, assign it a neutral gray
+  other_idx <- grep("Other", categories, ignore.case = TRUE)
+  if(length(other_idx) > 0) {
+    colors[other_idx] <- "#CCCCCC"  # Light gray for "Other"
+  }
+  
+  return(colors)
+}
+
+# Helper function to create legend
+create_legend <- function(categories, colors) {
+  legend_items <- map2_chr(categories, colors, function(cat, col) {
+    paste0('<span style="display: inline-block; margin-right: 10px; margin-bottom: 3px;">',
+           '<span style="display: inline-block; width: 10px; height: 10px; ',
+           'background-color: ', col, '; margin-right: 4px; border-radius: 2px;"></span>',
+           '<span style="font-size: 11px;">', cat, '</span></span>')
+  })
+  paste(legend_items, collapse = "")
+}
+
+
 #----------------#
 ####    UI    ####
 #----------------#
@@ -138,6 +184,17 @@ ui <- page_fluid(
         div(class = "text-center",
             plotlyOutput("spp_plot", height = "250px"),
             div(id = "spp_legend", class = "mt-2")
+        ),
+        
+        # Date range
+        div(
+          class = "text-center text-muted small mt-3",
+          style = "font-size: 0.85rem;",
+          p(
+            icon("calendar", style = "margin-right: 5px;"),
+            "Data range: ", 
+            textOutput("inat_date_range", inline = TRUE)
+          )
         )
     ),
     
@@ -184,6 +241,17 @@ ui <- page_fluid(
         div(class = "text-center",
             plotlyOutput("ebird_spp_plot", height = "250px"),
             div(id = "ebird_spp_legend", class = "mt-2")
+        ),
+        
+        # Date range
+        div(
+          class = "text-center text-muted small mt-3",
+          style = "font-size: 0.85rem;",
+          p(
+            icon("calendar", style = "margin-right: 5px;"),
+            "Data range: ", 
+            textOutput("ebird_date_range", inline = TRUE)
+          )
         )
     )
   ),
@@ -192,7 +260,22 @@ ui <- page_fluid(
   hr(),
   div(
     class = "text-center text-muted small mt-4 mb-3",  
-    p("Data sourced from iNaturalist and eBird • Last updated: ", Sys.Date())
+    p(
+      "Data sourced from ",
+      tags$a(
+        "iNaturalist", 
+        href = "https://www.inaturalist.org/",
+        target = "_blank",
+        style = "color: #2E8B57; text-decoration: underline; font-weight: bold;"
+      ),
+      " and ",
+      tags$a(
+        "eBird", 
+        href = "https://ebird.org/",
+        target = "_blank",
+        style = "color: #2E8B57; text-decoration: underline; font-weight: bold;"
+      )
+    )
   )
 )
 
@@ -201,46 +284,6 @@ ui <- page_fluid(
 #--------------------#
 
 server <- function(input, output, session) {
-  
-  # Function to generate a palette for any number of categories
-  generate_palette <- function(n_colors, palette_type = "qualitative") {
-    if(n_colors <= 8) {
-      rev(viridis(n_colors, option = "D", end = 0.85))
-    } else {
-      # Use multiple viridis family palettes - colorblind friendly
-      base_colors <- c(
-        rev(viridis(8, option = "D", end = 0.85)),  # Classic viridis (purple-teal)
-        rocket(6, begin = 0.4),
-        rev(cividis(6))
-      )
-      base_colors[1:min(n_colors, length(base_colors))]
-    }
-  }
-  
-  # Function to assign colors ensuring "Other" gets a neutral color
-  get_chart_colors <- function(categories, palette_type = "qualitative") {
-    n_cats <- length(categories)
-    colors <- generate_palette(n_cats, palette_type)
-    
-    # If there's an "Other" category, assign it a neutral gray
-    other_idx <- grep("Other", categories, ignore.case = TRUE)
-    if(length(other_idx) > 0) {
-      colors[other_idx] <- "#CCCCCC"  # Light gray for "Other"
-    }
-    
-    return(colors)
-  }
-  
-  # Helper function to create legend
-  create_legend <- function(categories, colors) {
-    legend_items <- map2_chr(categories, colors, function(cat, col) {
-      paste0('<span style="display: inline-block; margin-right: 10px; margin-bottom: 3px;">',
-             '<span style="display: inline-block; width: 10px; height: 10px; ',
-             'background-color: ', col, '; margin-right: 4px; border-radius: 2px;"></span>',
-             '<span style="font-size: 11px;">', cat, '</span></span>')
-    })
-    paste(legend_items, collapse = "")
-  }
   
   # ---- Species pie chart for iNaturalist ----
   spp_summary <- reactive({
@@ -359,7 +402,7 @@ server <- function(input, output, session) {
              immediate = TRUE)
   })
   
-  # ---- iNaturalist stats ----
+  ## ---- iNaturalist summaries ----
   inat_summary <- reactive({
     list(
       n_observations = n_distinct(inat_data$uuid),
@@ -390,9 +433,38 @@ server <- function(input, output, session) {
   output$ebird_observers <- renderText({
     formatC(ebird_summary()$n_observers, big.mark = ",")
   })
+  
+  # Get and provide date ranges of the data 
+  inat_date_range <- reactive({
+    dates <- as.Date(inat_data$observed_on, format = "%Y-%m-%d")
+    list(
+      min = min(dates, na.rm = TRUE),
+      max = max(dates, na.rm = TRUE)
+    )
+  })
+  
+  ebird_date_range <- reactive({
+    dates <- as.Date(eBird_data$OBSERVATION.DATE, format = "%Y-%m-%d")
+    list(
+      min = min(dates, na.rm = TRUE),
+      max = max(dates, na.rm = TRUE)
+    )
+  })
+  
+  output$inat_date_range <- renderText({
+    dates <- inat_date_range()
+    paste0(format(dates$min, "%b %Y"), " – ", format(dates$max, "%b %Y"))
+  })
+  
+  output$ebird_date_range <- renderText({
+    dates <- ebird_date_range()
+    paste0(format(dates$min, "%b %Y"), " – ", format(dates$max, "%b %Y"))
+  })
+  
 }
 
 # Run app
 shinyApp(ui, server)
+
 
 
