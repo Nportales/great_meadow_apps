@@ -190,7 +190,7 @@ plot_veg_metric <- function(data, grand_data, metric, y_label, title, show_label
         "Great Meadow" = "black",
         "Gilmore Meadow" = "grey67"
       ),
-      breaks = c("Great Meadow", "Gilmore Meadow"),  # Explicit order
+      breaks = c("Great Meadow", "Gilmore Meadow"),  
       drop = TRUE
     ) +
     
@@ -200,7 +200,7 @@ plot_veg_metric <- function(data, grand_data, metric, y_label, title, show_label
         "Great Meadow" = 16,
         "Gilmore Meadow" = 17
       ),
-      breaks = c("Great Meadow", "Gilmore Meadow"),  # Explicit order
+      breaks = c("Great Meadow", "Gilmore Meadow"), 
       drop = TRUE
     ) +
     

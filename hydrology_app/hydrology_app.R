@@ -21,7 +21,7 @@ library(ggtext)
 # setwd("hydrology_app")
 
 # Great Meadow data
-gm <- read.csv("data/great_meadow_well_data_2025_20260304.csv") %>%
+gm <- read.csv("data/gm_well_data_2025_20260304.csv") %>%
   mutate(date = as.Date(date),
          timestamp = as_datetime(timestamp),
          site = paste("Great Meadow", plot.num),
