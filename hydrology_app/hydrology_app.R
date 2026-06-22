@@ -119,9 +119,9 @@ VAR_MAPPING <- c(
   "max_inc" = "Maximum Hourly Increase (cm)",
   "max_dec" = "Maximum Hourly Decrease (cm)",
   "GS_change" = "Growing Season Change (cm)",
-  "prop_over_0cm" = "GS % Surface Water",
-  "prop_bet_0_neg30cm" = "GS % Within 30cm",
-  "prop_under_neg30cm" = "GS % Over 30cm Deep"
+  "prop_over_0cm" = "Growing Season Surface Water (%)",
+  "prop_bet_0_neg30cm" = "Growing Season Saturated Soil (%)",
+  "prop_under_neg30cm" = "Growing Season Unsaturated Soil (%)"
 )
 
 # Common pickerInput options
@@ -573,9 +573,9 @@ ui <- page_fluid(
                         "Maximum Hourly Increase (cm)" = "max_inc",
                         "Maximum Hourly Decrease (cm)" = "max_dec",
                         "Growing Season Change (cm)" = "GS_change",
-                        "GS % Surface Water" = "prop_over_0cm",
-                        "GS % Within 30cm" = "prop_bet_0_neg30cm",
-                        "GS % Over 30cm Deep" = "prop_under_neg30cm"
+                        "Growing Season Surface Water (%)" = "prop_over_0cm",
+                        "Growing Season Saturated Soil (%)" = "prop_bet_0_neg30cm",
+                        "Growing Season Unsaturated Soil (%)" = "prop_under_neg30cm"
                       ),
                       selected = "WL_mean",
                       multiple = TRUE,
@@ -847,8 +847,8 @@ server <- function(input, output, session) {
                       `SD Water Level (cm)` = WL_sd, `Minimum Water Level (cm)` = WL_min,
                       `Maximum Water Level (cm)` = WL_max, `Maximum Hourly Increase (cm)` = max_inc,
                       `Maximum Hourly Decrease (cm)` = max_dec, `Growing Season Change (cm)` = GS_change,
-                      `GS % Surface Water` = prop_over_0cm, `GS % Within 30cm` = prop_bet_0_neg30cm,
-                      `GS % Over 30cm Deep` = prop_under_neg30cm)
+                      `Growing Season Surface Water (%)` = prop_over_0cm, `Growing Season Saturated Soil (%)` = prop_bet_0_neg30cm,
+                      `Growing Season Unsaturated Soil (%)` = prop_under_neg30cm)
            },
            "multi" = {
              # Average Across Years
@@ -865,8 +865,8 @@ server <- function(input, output, session) {
                       `SD Water Level (cm)` = WL_sd, `Minimum Water Level (cm)` = WL_min,
                       `Maximum Water Level (cm)` = WL_max, `Maximum Hourly Increase (cm)` = max_inc,
                       `Maximum Hourly Decrease (cm)` = max_dec, `Growing Season Change (cm)` = GS_change,
-                      `GS % Surface Water` = prop_over_0cm, `GS % Within 30cm` = prop_bet_0_neg30cm,
-                      `GS % Over 30cm Deep` = prop_under_neg30cm)
+                      `Growing Season Surface Water (%)` = prop_over_0cm, `Growing Season Saturated Soil (%)` = prop_bet_0_neg30cm,
+                      `Growing Season Unsaturated Soil (%)` = prop_under_neg30cm)
            },
            "wetland_year" = {
              # Wetland per Year (NEW)
@@ -882,8 +882,8 @@ server <- function(input, output, session) {
                       `SD Water Level (cm)` = WL_sd, `Minimum Water Level (cm)` = WL_min,
                       `Maximum Water Level (cm)` = WL_max, `Maximum Hourly Increase (cm)` = max_inc,
                       `Maximum Hourly Decrease (cm)` = max_dec, `Growing Season Change (cm)` = GS_change,
-                      `GS % Surface Water` = prop_over_0cm, `GS % Within 30cm` = prop_bet_0_neg30cm,
-                      `GS % Over 30cm Deep` = prop_under_neg30cm)
+                      `Growing Season Surface Water (%)` = prop_over_0cm, `Growing Season Saturated Soil (%)` = prop_bet_0_neg30cm,
+                      `Growing Season Unsaturated Soil (%)` = prop_under_neg30cm)
            },
            "all_sites" = {
              # All Sites with significance
@@ -901,8 +901,8 @@ server <- function(input, output, session) {
                       `SD Water Level (cm)` = WL_sd, `Minimum Water Level (cm)` = WL_min,
                       `Maximum Water Level (cm)` = WL_max, `Maximum Hourly Increase (cm)` = max_inc,
                       `Maximum Hourly Decrease (cm)` = max_dec, `Growing Season Change (cm)` = GS_change,
-                      `GS % Surface Water` = prop_over_0cm, `GS % Within 30cm` = prop_bet_0_neg30cm,
-                      `GS % Over 30cm Deep` = prop_under_neg30cm)
+                      `Growing Season Surface Water (%)` = prop_over_0cm, `Growing Season Saturated Soil (%)` = prop_bet_0_neg30cm,
+                      `Growing Season Unsaturated Soil (%)` = prop_under_neg30cm)
            }
     )
   })
@@ -1017,18 +1017,7 @@ server <- function(input, output, session) {
   output$timeseries_plots <- renderUI({
     req(input$selected_metric, input$ts_wetland)
     
-    metric_labels <- c(
-      "WL_mean" = "Mean Water Level (cm)",
-      "WL_sd" = "SD Water Level (cm)",
-      "WL_min" = "Minimum Water Level (cm)",
-      "WL_max" = "Maximum Water Level (cm)",
-      "max_inc" = "Maximum Hourly Increase (cm)",
-      "max_dec" = "Maximum Hourly Decrease (cm)",
-      "GS_change" = "Growing Season Change (cm)",
-      "prop_over_0cm" = "GS % Surface Water",
-      "prop_bet_0_neg30cm" = "GS % Within 30cm",
-      "prop_under_neg30cm" = "GS % Over 30cm Deep"
-    )
+    metric_labels <- VAR_MAPPING
     
     # Get significance results only if both wetlands selected
     sig_results <- if (length(input$ts_wetland) == 2 && 
@@ -1158,18 +1147,7 @@ server <- function(input, output, session) {
       filtered_grand_means <- grand_means %>%
         filter(wetland %in% input$ts_wetland)
       
-      metric_labels <- c(
-        "WL_mean" = "Mean Water Level (cm)",
-        "WL_sd" = "SD Water Level (cm)",
-        "WL_min" = "Minimum Water Level (cm)",
-        "WL_max" = "Maximum Water Level (cm)",
-        "max_inc" = "Maximum Hourly Increase (cm)",
-        "max_dec" = "Maximum Hourly Decrease (cm)",
-        "GS_change" = "Growing Season Change (cm)",
-        "prop_over_0cm" = "GS % Surface Water",
-        "prop_bet_0_neg30cm" = "GS % Within 30cm",
-        "prop_under_neg30cm" = "GS % Over 30cm Deep"
-      )
+      metric_labels <- VAR_MAPPING
       
       # Get significance results
       sig_results <- if (length(input$ts_wetland) == 2 && 
@@ -1225,3 +1203,4 @@ server <- function(input, output, session) {
 
 # Run app
 shinyApp(ui, server)
+
