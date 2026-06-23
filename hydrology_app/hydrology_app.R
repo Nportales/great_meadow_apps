@@ -471,6 +471,21 @@ ui <- page_fluid(
       align-items: center;
       flex-wrap: wrap;
     }
+    
+    /* Fix for picker dropdown width */
+    .bootstrap-select .dropdown-menu {
+      min-width: 100% !important;
+      width: auto !important;
+      max-width: 500px !important;
+    }
+    .bootstrap-select .dropdown-menu li a {
+      white-space: normal !important;
+      padding-right: 10px !important;
+    }
+    .bootstrap-select .dropdown-menu li a span.text {
+      display: inline-block;
+      padding-right: 5px;
+    }
   "))
   ),
   
