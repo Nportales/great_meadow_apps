@@ -712,6 +712,17 @@ ui <- page_fluid(
 
 server <- function(input, output, session) {
   
+  # Observer to update selections when switching to wetland-level summaries
+  observe({
+    if (input$time_summary %in% c("wetland_year", "all_sites")) {
+      # Select all sites and years for wetland summaries
+      updatePickerInput(session, "stats_site", 
+                        selected = unique(wl_stats$site))
+      updatePickerInput(session, "stats_year", 
+                        selected = unique(wl_stats$year))
+    }
+  }) %>% bindEvent(input$time_summary)
+  
   # Reactive data for plotting
   plot_data <- reactive({
     req(input$year, input$selected_sites)
