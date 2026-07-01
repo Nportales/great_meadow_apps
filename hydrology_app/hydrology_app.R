@@ -145,8 +145,8 @@ create_hydrograph_plot <- function(data) {
   sites <- unique(data$site)
   
   ggplot(data, aes(x = doy_h, y = water_depth)) +
-    geom_line(aes(color = site), size = 0.7) +
-    geom_line(aes(x = doy_h, y = lag_precip * 5 + minWL, color = "Precipitation"), size = 0.7) +
+    geom_line(aes(color = site), linewidth = 0.7) +
+    geom_line(aes(x = doy_h, y = lag_precip * 5 + minWL, color = "Precipitation"), linewidth = 0.7) +
     geom_hline(yintercept = 0, color = 'brown') +
     facet_wrap(~ year, ncol = 1) +
     scale_color_manual(values = SITE_COLORS, breaks = c(sites, "Precipitation")) +
